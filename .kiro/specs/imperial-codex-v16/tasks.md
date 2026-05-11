@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # Imperial Codex v16 — Implementation Tasks
 
 ## Tasks
@@ -280,3 +281,6 @@
   - Confirm middleware correctly blocks unauthenticated requests to all protected routes
   - **References:** All requirements, Design §Testing Strategy
   - **Depends on:** 15, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32
+=======
+# placeholder
+>>>>>>> 62b893a2803c043c64e5fdbb8265c50dc1186bf6
