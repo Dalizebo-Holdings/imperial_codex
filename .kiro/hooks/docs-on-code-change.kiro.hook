@@ -1,0 +1,21 @@
+{
+  "enabled": true,
+  "name": "Update Docs on Code Change",
+  "description": "Listen to source files (TypeScript, Python, etc.) and prompt documentation updates in README or /docs folder",
+  "version": "1",
+  "when": {
+    "type": "fileEdited",
+    "patterns": [
+      "*.ts",
+      "*.tsx",
+      "*.js",
+      "*.jsx",
+      "*.py",
+      "*.md"
+    ]
+  },
+  "then": {
+    "type": "askAgent",
+    "prompt": "Review the code changes and update the relevant documentation in README.md or the docs/ folder to reflect these changes. Focus on keeping documentation in sync with the codebase."
+  }
+}

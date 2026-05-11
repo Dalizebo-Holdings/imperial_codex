@@ -1,0 +1,49 @@
+{
+    "_comment": "Imperial Codex MCP Server — connection configuration for Claude Desktop, Cursor, and other MCP clients.",
+    "_docs": "See docs/deployment.md for full setup instructions.",
+    "mcpServers": {
+        "imperial-codex-stdio": {
+            "_comment": "Local stdio transport — run the MCP server as a child process. Best for Claude Desktop and Cursor.",
+            "command": "node",
+            "args": [
+                "--loader",
+                "ts-node/esm",
+                "--experimental-specifier-resolution=node",
+                "src/mcp/server.ts"
+            ],
+            "env": {
+                "SUPABASE_URL": "${SUPABASE_URL}",
+                "SUPABASE_ANON_KEY": "${SUPABASE_ANON_KEY}",
+                "SUPABASE_SERVICE_ROLE_KEY": "${SUPABASE_SERVICE_ROLE_KEY}",
+                "VAULT_ENCRYPTION_KEY": "${VAULT_ENCRYPTION_KEY}",
+                "OPENAI_API_KEY": "${OPENAI_API_KEY}",
+                "ANTHROPIC_API_KEY": "${ANTHROPIC_API_KEY}"
+            },
+            "description": "Imperial Codex MCP server (local stdio) — 13 tools for Pillars, OS Modules, Library, Strike Output, and more"
+        },
+        "imperial-codex-http": {
+            "_comment": "Remote HTTP transport — connect to the deployed Vercel instance. Requires authentication.",
+            "url": "${MCP_SERVER_URL}/api/mcp",
+            "description": "Imperial Codex MCP server (remote HTTP) — requires valid imperial-session cookie"
+        }
+    },
+    "tools": {
+        "read": [
+            "get_pillar",
+            "search_pillars",
+            "get_os_module",
+            "list_os_modules",
+            "search_library",
+            "get_library_entry",
+            "get_integration_map"
+        ],
+        "write": [
+            "generate_strike_output",
+            "get_instrument",
+            "list_instruments",
+            "get_capital_allocation",
+            "submit_capital_allocation",
+            "get_loop_status"
+        ]
+    }
+}

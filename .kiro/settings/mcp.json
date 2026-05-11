@@ -1,0 +1,28 @@
+{
+    "mcpServers": {
+        "imperial-codex": {
+            "command": "node",
+            "args": [
+                "--loader",
+                "ts-node/esm",
+                "--experimental-specifier-resolution=node",
+                "src/mcp/server.ts"
+            ],
+            "env": {},
+            "disabled": false,
+            "autoApprove": [
+                "get_pillar",
+                "search_pillars",
+                "get_os_module",
+                "list_os_modules",
+                "search_library",
+                "get_library_entry",
+                "get_integration_map",
+                "get_loop_status",
+                "get_capital_allocation",
+                "get_instrument",
+                "list_instruments"
+            ]
+        }
+    }
+}
