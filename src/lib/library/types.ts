@@ -13,6 +13,8 @@ export interface LibraryEntry {
   /** Optional slug alias for URL-friendly access */
   slug?: string;
   tags?: string[];
+  /** Slug tags for library entries */
+  slugTags?: string[];
 }
 
 export interface LibrarySearchResult {

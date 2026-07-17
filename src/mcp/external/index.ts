@@ -15,19 +15,19 @@
 export {
   isBraveSearchAvailable,
   getBraveSearchTool,
-} from './brave.js';
+} from './brave';
 
 export {
   isSlackAvailable,
   getSlackClient,
   sendCriticalLoopAlert,
-} from './slack.js';
+} from './slack';
 
 export {
   isGitHubAvailable,
   getGitHubGetFileTool,
   getGitHubUpdateFileTool,
-} from './github.js';
+} from './github';
 
 /**
  * Returns all available external tools as a flat object for use with streamText.
@@ -37,12 +37,12 @@ export function getExternalTools(): Record<string, unknown> {
   const tools: Record<string, unknown> = {};
 
   // Brave Search
-  const { getBraveSearchTool } = require('./brave.js');
+  const { getBraveSearchTool } = require('./brave');
   const braveTool = getBraveSearchTool();
   if (braveTool) tools['brave_web_search'] = braveTool;
 
   // GitHub
-  const { getGitHubGetFileTool, getGitHubUpdateFileTool } = require('./github.js');
+  const { getGitHubGetFileTool, getGitHubUpdateFileTool } = require('./github');
   const githubGetTool = getGitHubGetFileTool();
   const githubUpdateTool = getGitHubUpdateFileTool();
   if (githubGetTool) tools['github_get_file_contents'] = githubGetTool;
@@ -55,9 +55,9 @@ export function getExternalTools(): Record<string, unknown> {
  * Returns a summary of which external integrations are currently available.
  */
 export function getExternalIntegrationStatus(): Record<string, boolean> {
-  const { isBraveSearchAvailable } = require('./brave.js');
-  const { isSlackAvailable } = require('./slack.js');
-  const { isGitHubAvailable } = require('./github.js');
+  const { isBraveSearchAvailable } = require('./brave');
+  const { isSlackAvailable } = require('./slack');
+  const { isGitHubAvailable } = require('./github');
 
   return {
     braveSearch: isBraveSearchAvailable(),

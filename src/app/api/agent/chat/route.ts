@@ -92,7 +92,6 @@ export async function POST(request: NextRequest) {
       system: SYSTEM_PROMPT,
       messages: allMessages,
       tools,
-      maxSteps: 5, // Allow up to 5 tool call rounds
       onFinish: async ({ text }) => {
         // Persist messages after stream completes
         if (conversationId && incomingMessages.length > 0) {
@@ -125,7 +124,7 @@ export async function POST(request: NextRequest) {
     });
 
     // Return the conversation ID in a header so the client can track it
-    const response = result.toDataStreamResponse();
+    const response = result.toTextStreamResponse();
     if (conversationId) {
       const headers = new Headers(response.headers);
       headers.set('X-Conversation-Id', conversationId);

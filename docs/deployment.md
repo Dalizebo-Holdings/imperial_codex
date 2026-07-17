@@ -2,6 +2,10 @@
 
 This guide covers deploying Imperial Codex v16 to Vercel with Supabase as the persistence layer.
 
+For comprehensive service integration documentation (AWS, Docker, GitHub, Qdrant, Pinecone, Redis), see [Service Integration Guide](service-integration.md).
+
+For monitoring and observability documentation, see [Monitoring Guide](monitoring.md).
+
 ---
 
 ## Prerequisites
@@ -154,3 +158,12 @@ npm test
 # Build for production
 npm run build
 ```
+
+---
+
+## Next Steps
+
+1. **Set up monitoring** — Configure Vercel and AWS CloudWatch dashboards
+2. **Review service integration** — Understand how all services work together
+3. **Configure alerting** — Set up Slack notifications for critical alerts
+4. **Start developing** — Begin implementing features using the integrated services

@@ -33,3 +33,9 @@ yarn-error.log*
 .idea/
 .vscode/
 *.sublime-project
+
+# --- Terraform ---
+infrastructure/terraform.tfstate
+infrastructure/terraform.tfstate.backup
+infrastructure/.terraform/
+infrastructure/.terraform.lock.hcl

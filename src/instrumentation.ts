@@ -29,8 +29,8 @@ export async function register() {
   // Step 2: Kernel loader
   try {
     const { loadKernel } = await import('@/lib/kernel/KernelLoader');
-    const kernelState = await loadKernel();
-    if (kernelState.status === 'halted') {
+    const kernelResult = await loadKernel();
+    if (kernelResult.state.status === 'halted') {
       console.error('[Startup] Kernel halted — all API routes will return 503 KERNEL_HALTED');
     }
   } catch (err) {

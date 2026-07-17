@@ -15,7 +15,7 @@ import type { NextRequest } from 'next/server';
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   let session;
   try {
@@ -31,8 +31,9 @@ export async function GET(
   }
 
   try {
-    const conversation = await getConversation(params.id, session.userId);
-    const messages = await getMessages(params.id);
+    const { id } = await params;
+    const conversation = await getConversation(id, session.userId);
+    const messages = await getMessages(id);
     return Response.json({ conversation, messages });
   } catch (err) {
     if (err instanceof ConversationNotFoundError) {
@@ -57,7 +58,7 @@ export async function GET(
 
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   let session;
   try {
@@ -73,8 +74,9 @@ export async function DELETE(
   }
 
   try {
-    await deleteSession(params.id, session.userId);
-    return Response.json({ deleted: true, id: params.id });
+    const { id } = await params;
+    await deleteSession(id, session.userId);
+    return Response.json({ deleted: true, id });
   } catch (err) {
     if (err instanceof ConversationNotFoundError) {
       return Response.json(

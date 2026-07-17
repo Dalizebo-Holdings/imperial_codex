@@ -14,8 +14,8 @@
 
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
-import { registerReadTools } from './tools/read-tools.js';
-import { registerWriteTools } from './tools/write-tools.js';
+import { registerReadTools } from './tools/read-tools';
+import { registerWriteTools } from './tools/write-tools';
 
 export const MCP_SERVER_NAME = 'imperial-codex';
 export const MCP_SERVER_VERSION = '1.0.0';
