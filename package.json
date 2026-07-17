@@ -7,7 +7,12 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "test": "node --experimental-vm-modules node_modules/jest/bin/jest.js --runInBand"
+    "test": "node --experimental-vm-modules node_modules/jest/bin/jest.js --runInBand",
+    "q:help": "aws q help",
+    "q:chat": "aws q chat",
+    "q:code": "aws q code",
+    "q:scan": "aws q scan",
+    "q:explain": "aws q explain"
   },
   "dependencies": {
     "@ai-sdk/openai": "^3.0.63",
