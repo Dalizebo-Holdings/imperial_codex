@@ -1,0 +1,10 @@
+{
+  "name": "Imperial Codex Dev Container",
+  "image": "mcr.microsoft.com/devcontainers/javascript-node:0-20",
+  "features": {
+    "ghcr.io/devcontainers/features/aws-cli:1": {}
+  },
+  "postCreateCommand": "npm install --legacy-peer-deps",
+  "forwardPorts": [3000],
+  "remoteUser": "vscode"
+}

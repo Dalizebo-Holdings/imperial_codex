@@ -1,0 +1,25 @@
+{
+  "folders": [
+    {
+      "path": "."
+    }
+  ],
+  "settings": {
+    "amazonQ.profile": "amazon-q",
+    "amazonQ.region": "us-east-1",
+    "terminal.integrated.env.windows": {
+      "AWS_PROFILE": "amazon-q",
+      "AWS_REGION": "us-east-1"
+    },
+    "editor.codeActionsOnSave": {
+      "source.fixAll": "explicit"
+    }
+  },
+  "extensions": {
+    "recommendations": [
+      "amazonwebservices.amazon-q-vscode",
+      "esbenp.prettier-vscode",
+      "ms-vscode.vscode-typescript-next"
+    ]
+  }
+}
