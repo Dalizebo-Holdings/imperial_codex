@@ -12,3 +12,9 @@ variable "tags" {
     Pillar  = "101"
   }
 }
+
+variable "coolify_key_pair" {
+  description = "EC2 key pair name for SSH access to the Coolify server"
+  type        = string
+  default     = "imperial-codex-key"
+}

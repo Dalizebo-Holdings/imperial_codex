@@ -1,0 +1,27 @@
+{
+  "id": "imperial-codex",
+  "name": "Imperial Codex",
+  "description": "Dalizebo Holdings — Strategic Operating System v16",
+  "build": {
+    "type": "dockerfile",
+    "dockerfile": "Dockerfile"
+  },
+  "deploy": {
+    "port": 3000,
+    "healthcheck": "/api/health",
+    "restart_policy": "always"
+  },
+  "domains": [
+    "imperial-codex.dalizebo.com"
+  ],
+  "crons": [
+    {
+      "schedule": "*/15 * * * *",
+      "command": "curl -s -X POST http://localhost:3000/api/agent/cron -H \"Authorization: Bearer $CRON_SECRET\""
+    },
+    {
+      "schedule": "0 6 * * *",
+      "command": "curl -s -X POST http://localhost:3000/api/agent/cron -H \"Authorization: Bearer $CRON_SECRET\""
+    }
+  ]
+}
