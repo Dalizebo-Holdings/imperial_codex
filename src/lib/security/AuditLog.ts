@@ -10,6 +10,8 @@ import { getSupabaseClient, SupabaseDegradedError } from '@/lib/db/supabase';
 import { withRetry } from '@/lib/db/retry';
 import type { AuditLogEntry } from './types';
 
+const sanitize = (s: unknown) => String(s).replace(/[\r\n]/g, '');
+
 /**
  * Appends an audit log entry to the Supabase `audit_log` table.
  * Retries up to 2 times with exponential back-off on failure.
@@ -22,7 +24,7 @@ export async function append(entry: AuditLogEntry): Promise<void> {
   } catch (err) {
     if (err instanceof SupabaseDegradedError) {
       // Log locally but do not throw — audit log failure must not block the gate
-      console.error('[AuditLog] Supabase unavailable — entry not persisted:', entry);
+      console.error(`[AuditLog] Supabase unavailable — entry not persisted: userId=${sanitize(entry.userId)} resource=${sanitize(entry.resource)}`);
       return;
     }
     throw err;

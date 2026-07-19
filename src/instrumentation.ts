@@ -9,6 +9,8 @@
  * 5. SupabaseRepository.init()— validates env vars, creates Supabase clients
  */
 
+const sanitize = (s: string) => String(s).replace(/[\r\n]/g, '');
+
 export async function register() {
   // Only run on the Node.js runtime (not Edge)
   if (process.env.NEXT_RUNTIME === 'edge') return;
@@ -19,7 +21,7 @@ export async function register() {
     const integrityResult = checkStructuralIntegrity();
     if (!integrityResult.ok) {
       console.warn(
-        `[Startup] STRUCTURAL_INTEGRITY_WARNING: Missing paths: ${integrityResult.missingPaths.join(', ')}`
+        `[Startup] STRUCTURAL_INTEGRITY_WARNING: Missing paths: ${integrityResult.missingPaths.map(sanitize).join(', ')}`
       );
     }
   } catch (err) {

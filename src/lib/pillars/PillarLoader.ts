@@ -28,6 +28,8 @@ const VALID_CLUSTERS: PillarCluster[] = [
   'Singularity Laws',
 ];
 
+const sanitize = (s: string) => s.replace(/[\r\n]/g, '');
+
 /**
  * Parses the multi-document PILLARS.md format.
  * Each pillar: ---\ncode/cluster/title fields\n---\n\nbody text\n
@@ -56,7 +58,7 @@ function parsePillarsMarkdown(content: string): Pillar[] {
         if (VALID_CLUSTERS.includes(cluster)) {
           pillars.push({ code, cluster, title, body: pillarBody });
         } else {
-          console.warn(`[PillarLoader] Unknown cluster "${cluster}" for pillar ${code} — skipping`);
+          console.warn(`[PillarLoader] Unknown cluster "${sanitize(cluster)}" for pillar ${sanitize(code)} — skipping`);
         }
       }
       i += 2;
@@ -83,11 +85,11 @@ export async function loadPillars(): Promise<void> {
   for (const pillar of parsed) {
     const num = parseInt(pillar.code, 10);
     if (num < PILLAR_CODE_MIN || num > PILLAR_CODE_MAX) {
-      console.warn(`[PillarLoader] Pillar code ${pillar.code} out of range — skipping`);
+      console.warn(`[PillarLoader] Pillar code ${sanitize(pillar.code)} out of range — skipping`);
       continue;
     }
     if (pillars.has(pillar.code)) {
-      console.warn(`[PillarLoader] Duplicate pillar code ${pillar.code} — skipping`);
+      console.warn(`[PillarLoader] Duplicate pillar code ${sanitize(pillar.code)} — skipping`);
       continue;
     }
     pillars.set(pillar.code, pillar);

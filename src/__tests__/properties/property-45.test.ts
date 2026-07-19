@@ -29,7 +29,7 @@ describe('Property 45: External MCP Client Conditional Initialisation', () => {
       if (originalEnv[key] !== undefined) {
         process.env[key] = originalEnv[key];
       } else {
-        delete process.env[key];
+        process.env[key] = undefined;
       }
     }
   });
@@ -39,7 +39,7 @@ describe('Property 45: External MCP Client Conditional Initialisation', () => {
       fc.property(
         fc.constantFrom('BRAVE_API_KEY', 'SLACK_BOT_TOKEN', 'GITHUB_TOKEN'),
         (envVar) => {
-          delete process.env[envVar];
+          process.env[envVar] = undefined;
           const getClient = createConditionalClient(envVar, () => ({ connected: true }));
           return getClient() === null;
         }
@@ -96,7 +96,7 @@ describe('Property 45: External MCP Client Conditional Initialisation', () => {
       fc.property(
         fc.constantFrom('BRAVE_API_KEY', 'SLACK_BOT_TOKEN', 'GITHUB_TOKEN'),
         (envVar) => {
-          delete process.env[envVar];
+          process.env[envVar] = undefined;
           const getClient = createConditionalClient(envVar, () => ({ connected: true }));
           let threw = false;
           try {
@@ -112,7 +112,7 @@ describe('Property 45: External MCP Client Conditional Initialisation', () => {
   });
 
   it('Brave Search tool is null when BRAVE_API_KEY is absent', () => {
-    delete process.env.BRAVE_API_KEY;
+    process.env.BRAVE_API_KEY = undefined;
     // Import dynamically to avoid module caching issues
     const { isBraveSearchAvailable } = require('@/mcp/external/brave');
     expect(isBraveSearchAvailable()).toBe(false);
@@ -125,13 +125,13 @@ describe('Property 45: External MCP Client Conditional Initialisation', () => {
   });
 
   it('Slack client is null when SLACK_BOT_TOKEN is absent', () => {
-    delete process.env.SLACK_BOT_TOKEN;
+    process.env.SLACK_BOT_TOKEN = undefined;
     const { isSlackAvailable } = require('@/mcp/external/slack');
     expect(isSlackAvailable()).toBe(false);
   });
 
   it('GitHub tools are null when GITHUB_TOKEN is absent', () => {
-    delete process.env.GITHUB_TOKEN;
+    process.env.GITHUB_TOKEN = undefined;
     const { isGitHubAvailable } = require('@/mcp/external/github');
     expect(isGitHubAvailable()).toBe(false);
   });

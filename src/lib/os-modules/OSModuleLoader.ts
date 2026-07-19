@@ -15,6 +15,7 @@ const VALID_CLUSTERS: OSModuleCluster[] = [
 ];
 
 const SLUG_PATTERN = /^[A-Z][A-Z-]{2,19}$/;
+const sanitize = (s: string) => String(s).replace(/[\r\n]/g, '');
 
 export async function loadOSModules(): Promise<void> {
   const store = getStore();
@@ -35,18 +36,18 @@ export async function loadOSModules(): Promise<void> {
       const slug: string = data.slug ?? file.replace('.md', '');
 
       if (!SLUG_PATTERN.test(slug)) {
-        console.warn(`[OSModuleLoader] Invalid slug format: ${slug} — skipping`);
+        console.warn(`[OSModuleLoader] Invalid slug format: ${sanitize(slug)} — skipping`);
         continue;
       }
 
       if (modules.has(slug)) {
-        console.warn(`[OSModuleLoader] Duplicate slug: ${slug} — skipping`);
+        console.warn(`[OSModuleLoader] Duplicate slug: ${sanitize(slug)} — skipping`);
         continue;
       }
 
       const cluster: OSModuleCluster = data.cluster ?? 'Machinery of War';
       if (!VALID_CLUSTERS.includes(cluster)) {
-        console.warn(`[OSModuleLoader] Invalid cluster "${cluster}" for ${slug} — defaulting`);
+        console.warn(`[OSModuleLoader] Invalid cluster "${sanitize(cluster)}" for ${sanitize(slug)} — defaulting`);
       }
 
       modules.set(slug, {
@@ -58,7 +59,7 @@ export async function loadOSModules(): Promise<void> {
         linkedIntegrationIds: data.linkedIntegrationIds ?? [],
       });
     } catch (err) {
-      console.warn(`[OSModuleLoader] Failed to parse ${file}:`, err);
+      console.warn(`[OSModuleLoader] Failed to parse ${sanitize(file)}:`, err);
     }
   }
 

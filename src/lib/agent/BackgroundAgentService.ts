@@ -20,6 +20,8 @@ import type { LoopEvaluationSummary, WebhookAlertPayload } from './types';
 import type { RecursiveLoop } from '@/lib/loops/types';
 import type { StructuredContext } from '@/lib/strike/types';
 
+const sanitize = (s: string) => String(s).replace(/[\r\n]/g, '');
+
 /**
  * Returns the UTC floor of the given date to the nearest 15-minute boundary.
  * e.g., 14:23 UTC → 14:15 UTC
@@ -109,7 +111,7 @@ export async function evaluateLoops(runAt: Date): Promise<LoopEvaluationSummary>
       }
     } catch (err) {
       errors++;
-      console.error(`[BackgroundAgent] Error evaluating loop ${loop.id}:`, err);
+      console.error(`[BackgroundAgent] Error evaluating loop ${sanitize(loop.id)}:`, err);
     }
   }
 
@@ -202,7 +204,7 @@ export async function generateDailySummary(runAt: Date): Promise<void> {
     userId: 'background-agent',
   });
 
-  console.log(`[BackgroundAgent] Daily summary generated: ${output.id ?? 'no-id'}`);
+  console.log(`[BackgroundAgent] Daily summary generated: ${sanitize(output.id ?? 'no-id')}`);
 }
 
 /**
@@ -217,6 +219,19 @@ export async function dispatchWebhookAlert(
 
   if (!webhookUrl) {
     console.warn('[BackgroundAgent] WEBHOOK_ALERT_URL not set — skipping webhook dispatch');
+    return;
+  }
+
+  // Validate webhookUrl is a safe HTTPS URL to prevent SSRF
+  let parsedUrl: URL;
+  try {
+    parsedUrl = new URL(webhookUrl);
+  } catch {
+    console.warn('[BackgroundAgent] WEBHOOK_ALERT_URL is not a valid URL — skipping');
+    return;
+  }
+  if (parsedUrl.protocol !== 'https:') {
+    console.warn('[BackgroundAgent] WEBHOOK_ALERT_URL must use HTTPS — skipping');
     return;
   }
 

@@ -59,7 +59,17 @@ function estimateTokens(text: string): number {
 /**
  * Assembles the user message from StructuredContext, applying token cap truncation.
  */
+const MAX_INTENT_LENGTH = 2000;
+
+function sanitizeIntent(intent: string): string {
+  return intent
+    .slice(0, MAX_INTENT_LENGTH)
+    .replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, '');
+}
+
 function assembleUserMessage(context: StructuredContext): string {
+  const safeIntent = sanitizeIntent(context.intent);
+
   // Check if we need to truncate Library entry bodies
   const totalLibraryChars = context.libraryEntries.reduce(
     (sum, entry) => sum + (entry.body?.length ?? 0),
@@ -67,7 +77,7 @@ function assembleUserMessage(context: StructuredContext): string {
   );
 
   const estimatedContextTokens =
-    estimateTokens(context.intent) +
+    estimateTokens(safeIntent) +
     estimateTokens(JSON.stringify(context.pillars)) +
     estimateTokens(JSON.stringify(context.osModules)) +
     estimateTokens(JSON.stringify(context.latestAllocation ?? '')) +
@@ -86,7 +96,7 @@ function assembleUserMessage(context: StructuredContext): string {
   }));
 
   const parts: string[] = [
-    `## Intent\n${context.intent}`,
+    `## Intent\n${safeIntent}`,
     `## Relevant Pillars (top 5)\n${JSON.stringify(context.pillars, null, 2)}`,
     `## Relevant OS Modules (top 3)\n${JSON.stringify(context.osModules, null, 2)}`,
     `## Relevant Library Entries (top 3${shouldTruncate ? ', bodies truncated to 500 chars' : ''})\n${JSON.stringify(libraryEntries, null, 2)}`,

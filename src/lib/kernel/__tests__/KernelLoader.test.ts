@@ -11,7 +11,6 @@
 import { jest } from '@jest/globals';
 import fs from 'fs';
 import path from 'path';
-import os from 'os';
 import { loadKernel, EXPECTED_KERNEL_VERSION, CANONICAL_SLUGS } from '../KernelLoader';
 
 // ---------------------------------------------------------------------------
@@ -53,9 +52,9 @@ Some directive text here.
 `;
 }
 
-/** Write content to a temp file and return its path. */
+/** Write content to a temp file inside cwd and return its path. */
 function writeTempFile(content: string): string {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'kernel-test-'));
+  const dir = fs.mkdtempSync(path.join(process.cwd(), '.kernel-test-'));
   const filePath = path.join(dir, 'KERNEL_V16_MASTER.md');
   fs.writeFileSync(filePath, content, 'utf-8');
   return filePath;
@@ -86,7 +85,7 @@ describe('KernelLoader', () => {
   // -------------------------------------------------------------------------
   describe('when the kernel file is missing', () => {
     it('returns status halted with KERNEL_FILE_MISSING error code', async () => {
-      const nonExistentPath = path.join(os.tmpdir(), 'does-not-exist', 'KERNEL_V16_MASTER.md');
+      const nonExistentPath = path.join(process.cwd(), 'does-not-exist', 'KERNEL_V16_MASTER.md');
 
       const result = await loadKernel(nonExistentPath);
 
@@ -96,7 +95,7 @@ describe('KernelLoader', () => {
     });
 
     it('logs an error when the file is missing', async () => {
-      const nonExistentPath = path.join(os.tmpdir(), 'does-not-exist', 'KERNEL_V16_MASTER.md');
+      const nonExistentPath = path.join(process.cwd(), 'does-not-exist', 'KERNEL_V16_MASTER.md');
 
       await loadKernel(nonExistentPath);
 
@@ -106,7 +105,7 @@ describe('KernelLoader', () => {
     });
 
     it('returns empty osModuleSlugs when file is missing', async () => {
-      const nonExistentPath = path.join(os.tmpdir(), 'does-not-exist', 'KERNEL_V16_MASTER.md');
+      const nonExistentPath = path.join(process.cwd(), 'does-not-exist', 'KERNEL_V16_MASTER.md');
 
       const result = await loadKernel(nonExistentPath);
 
@@ -119,8 +118,8 @@ describe('KernelLoader', () => {
   // -------------------------------------------------------------------------
   describe('when the kernel file is unreadable', () => {
     it('returns status halted with a descriptive error', async () => {
-      // Passing a directory path causes fs.readFileSync to throw EISDIR
-      const dirPath = os.tmpdir();
+      // Passing a directory path inside cwd causes fs.readFileSync to throw EISDIR
+      const dirPath = process.cwd();
 
       const result = await loadKernel(dirPath);
 
@@ -130,7 +129,7 @@ describe('KernelLoader', () => {
     });
 
     it('logs an error when the file is unreadable', async () => {
-      const dirPath = os.tmpdir();
+      const dirPath = process.cwd();
 
       await loadKernel(dirPath);
 

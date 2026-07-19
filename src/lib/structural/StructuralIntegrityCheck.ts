@@ -49,6 +49,8 @@ export interface StructuralIntegrityResult {
  * @param rootDir  Repository root to resolve paths against.
  *                 Defaults to `process.cwd()`. Override in tests.
  */
+const sanitize = (s: string) => String(s).replace(/[\r\n]/g, '');
+
 export function checkStructuralIntegrity(rootDir?: string): StructuralIntegrityResult {
   const root = rootDir ?? process.cwd();
   const missingPaths: string[] = [];
@@ -59,7 +61,7 @@ export function checkStructuralIntegrity(rootDir?: string): StructuralIntegrityR
     if (!fs.existsSync(absolutePath)) {
       missingPaths.push(absolutePath);
       console.warn(
-        `[StructuralIntegrityCheck] STRUCTURAL_INTEGRITY_WARNING: mandatory path missing: ${absolutePath}`
+        `[StructuralIntegrityCheck] STRUCTURAL_INTEGRITY_WARNING: mandatory path missing: ${sanitize(absolutePath)}`
       );
     }
   }

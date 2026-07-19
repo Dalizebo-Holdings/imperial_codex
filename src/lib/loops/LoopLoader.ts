@@ -4,6 +4,7 @@ import { getStore } from '@/lib/store/InMemoryStore';
 import type { RecursiveLoop } from './types';
 
 const LOOPS_FILE = path.join(process.cwd(), 'core', 'LOOPS.json');
+const sanitize = (s: string) => String(s).replace(/[\r\n]/g, '');
 
 export async function loadLoops(): Promise<void> {
   const store = getStore();
@@ -20,13 +21,13 @@ export async function loadLoops(): Promise<void> {
 
     for (const loop of records) {
       if (!loop.id || !loop.condition || !loop.actionLabel) {
-        console.warn(`[LoopLoader] Invalid loop record: ${loop.id ?? 'unknown'} — skipping`);
+        console.warn(`[LoopLoader] Invalid loop record: ${sanitize(loop.id ?? 'unknown')} — skipping`);
         continue;
       }
 
       const hasValidSlug = loop.referencedSlugs?.some((slug) => store.osModules.has(slug));
       if (!hasValidSlug) {
-        console.error(`[LoopLoader] LOOP_BROKEN_REFERENCE: Loop ${loop.id} references no registered slugs`);
+        console.error(`[LoopLoader] LOOP_BROKEN_REFERENCE: Loop ${sanitize(loop.id)} references no registered slugs`);
       }
 
       loops.set(loop.id, { ...loop, enabled: loop.enabled ?? true });

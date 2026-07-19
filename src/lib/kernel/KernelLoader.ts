@@ -22,6 +22,8 @@ import type { KernelState, KernelStatus } from './types';
 // Constants
 // ---------------------------------------------------------------------------
 
+const sanitize = (s: string) => String(s).replace(/[\r\n]/g, '');
+
 export const EXPECTED_KERNEL_VERSION = 'v16.2';
 
 export const CANONICAL_SLUGS: ReadonlySet<string> = new Set([
@@ -155,23 +157,35 @@ export function validateSlugs(parsed: string[]): {
  * @param filePath  Override the default path (useful in tests).
  */
 export async function loadKernel(filePath?: string): Promise<KernelLoadResult> {
-  const kernelPath = filePath ?? DEFAULT_KERNEL_PATH;
+  const kernelPath = filePath ?? DEFAULT_KERNEL_PATH; // kept for reference only
+  const safeKernelPath = path.resolve(process.cwd(), 'core', 'KERNEL_V16_MASTER.md');
+  const resolvedPath = filePath ? path.resolve(filePath) : safeKernelPath;
   const loadedAt = new Date().toISOString();
+
+  // Guard against path traversal when filePath is caller-supplied
+  const cwd = process.cwd();
+  if (!resolvedPath.startsWith(cwd)) {
+    return {
+      state: { version: 'unknown', status: 'halted', osModuleSlugs: [], loadedAt },
+      errorCode: 'KERNEL_PATH_TRAVERSAL',
+      errorMessage: 'Kernel file path is outside the project root',
+    };
+  }
 
   // ------------------------------------------------------------------
   // 1. Read the file
   // ------------------------------------------------------------------
   let rawContent: string;
   try {
-    rawContent = fs.readFileSync(kernelPath, 'utf-8');
+    rawContent = fs.readFileSync(resolvedPath, 'utf-8');
   } catch (err: unknown) {
     const nodeErr = err as NodeJS.ErrnoException;
     const isNotFound = nodeErr?.code === 'ENOENT';
 
     const errorCode = isNotFound ? 'KERNEL_FILE_MISSING' : 'KERNEL_FILE_UNREADABLE';
     const errorMessage = isNotFound
-      ? `Kernel file not found: ${kernelPath}`
-      : `Kernel file unreadable: ${kernelPath} — ${err instanceof Error ? err.message : String(err)}`;
+      ? `Kernel file not found: ${resolvedPath}`
+      : `Kernel file unreadable: ${resolvedPath} — ${err instanceof Error ? err.message : String(err)}`;
 
     console.error(`[KernelLoader] ${errorCode}: ${errorMessage}`);
 
@@ -204,7 +218,7 @@ export async function loadKernel(filePath?: string): Promise<KernelLoadResult> {
 
   if (fileVersion !== EXPECTED_KERNEL_VERSION) {
     console.warn(
-      `[KernelLoader] VERSION_MISMATCH: file version "${fileVersion}" differs from ` +
+      `[KernelLoader] VERSION_MISMATCH: file version "${sanitize(fileVersion)}" differs from ` +
         `expected "${EXPECTED_KERNEL_VERSION}". Continuing with file version.`
     );
   }
@@ -221,8 +235,8 @@ export async function loadKernel(filePath?: string): Promise<KernelLoadResult> {
     status = 'halted';
     console.error(
       `[KernelLoader] KERNEL_VALIDATION_FAILED: OS_Module slug set mismatch. ` +
-        `Missing: [${validation.missing.join(', ')}]. ` +
-        `Unexpected: [${validation.unexpected.join(', ')}].`
+        `Missing: [${validation.missing.map(sanitize).join(', ')}]. ` +
+        `Unexpected: [${validation.unexpected.map(sanitize).join(', ')}].`
     );
   }
 

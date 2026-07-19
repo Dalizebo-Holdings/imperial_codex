@@ -48,8 +48,9 @@ function parseLibraryMarkdown(content: string): LibraryEntry[] {
 
         // At least one tag must be a registered OS_Module slug
         const osModuleSlugs = tags.filter((t) => CANONICAL_SLUGS.has(t));
+        const sanitize = (s: string) => s.replace(/[\r\n]/g, '');
         if (osModuleSlugs.length === 0) {
-          console.warn(`[LibraryLoader] Entry ${id} has no registered OS_Module slug tags — skipping`);
+          console.warn(`[LibraryLoader] Entry ${sanitize(id)} has no registered OS_Module slug tags — skipping`);
           i += 2;
           continue;
         }
@@ -78,8 +79,9 @@ export async function loadLibrary(): Promise<void> {
   const library = new Map<string, LibraryEntry>();
 
   for (const entry of parsed) {
+    const sanitize = (s: string) => s.replace(/[\r\n]/g, '');
     if (library.has(entry.id)) {
-      console.warn(`[LibraryLoader] Duplicate library entry ID ${entry.id} — skipping`);
+      console.warn(`[LibraryLoader] Duplicate library entry ID ${sanitize(entry.id)} — skipping`);
       continue;
     }
     library.set(entry.id, entry);

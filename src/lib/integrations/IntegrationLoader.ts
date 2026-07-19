@@ -4,6 +4,7 @@ import { getStore } from '@/lib/store/InMemoryStore';
 import type { Integration } from './types';
 
 const INTEGRATIONS_FILE = path.join(process.cwd(), 'core', 'INTEGRATIONS.json');
+const sanitize = (s: string) => String(s).replace(/[\r\n]/g, '');
 
 export async function loadIntegrations(): Promise<void> {
   const store = getStore();
@@ -20,7 +21,7 @@ export async function loadIntegrations(): Promise<void> {
 
     for (const rec of records) {
       if (!rec.id || !rec.sourceSlug || !rec.targetSlugs?.length || !rec.relationshipType) {
-        console.warn(`[IntegrationLoader] Invalid integration record: ${JSON.stringify(rec)} — skipping`);
+        console.warn(`[IntegrationLoader] Invalid integration record: ${sanitize(JSON.stringify(rec))} — skipping`);
         continue;
       }
       integrations.set(rec.id, rec);
