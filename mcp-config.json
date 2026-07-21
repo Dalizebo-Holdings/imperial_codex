@@ -1,6 +1,6 @@
 {
-    "_comment": "Imperial Codex MCP Server — connection configuration for Claude Desktop, Cursor, and other MCP clients.",
-    "_docs": "See docs/deployment.md for full setup instructions.",
+    "_comment": "Imperial Codex MCP Server Configuration — Extended with awesome MCP servers and dual-mode agentic models (Qwen/Phi4)",
+    "_docs": "See docs/deployment.md for full setup instructions and docs/mcp-servers.md for MCP server guide.",
     "mcpServers": {
         "imperial-codex-stdio": {
             "_comment": "Local stdio transport — run the MCP server as a child process. Best for Claude Desktop and Cursor.",
@@ -25,6 +25,149 @@
             "_comment": "Remote HTTP transport — connect to the deployed Vercel instance. Requires authentication.",
             "url": "${MCP_SERVER_URL}/api/mcp",
             "description": "Imperial Codex MCP server (remote HTTP) — requires valid imperial-session cookie"
+        },
+        "filesystem": {
+            "_comment": "Official MCP server for secure file operations with configurable access controls",
+            "command": "npx",
+            "args": [
+                "-y",
+                "@modelcontextprotocol/server-filesystem",
+                "${HOME}/projects",
+                "/tmp"
+            ],
+            "description": "Secure file operations with configurable access controls"
+        },
+        "memory": {
+            "_comment": "Official MCP server for knowledge graph-based persistent memory system",
+            "command": "npx",
+            "args": [
+                "-y",
+                "@modelcontextprotocol/server-memory"
+            ],
+            "description": "Knowledge graph-based persistent memory system"
+        },
+        "git": {
+            "_comment": "Official MCP server for Git repository operations",
+            "command": "npx",
+            "args": [
+                "-y",
+                "@modelcontextprotocol/server-git",
+                "--repository",
+                "${HOME}/projects/imperial_codex"
+            ],
+            "description": "Tools to read, search, and manipulate Git repositories"
+        },
+        "fetch": {
+            "_comment": "Official MCP server for web content fetching and conversion",
+            "command": "npx",
+            "args": [
+                "-y",
+                "@modelcontextprotocol/server-fetch"
+            ],
+            "description": "Web content fetching and conversion for efficient LLM usage"
+        },
+        "sequentialthinking": {
+            "_comment": "Official MCP server for dynamic and reflective problem-solving through thought sequences",
+            "command": "npx",
+            "args": [
+                "-y",
+                "@modelcontextprotocol/server-sequentialthinking"
+            ],
+            "description": "Dynamic and reflective problem-solving through thought sequences"
+        },
+        "time": {
+            "_comment": "Official MCP server for time and timezone conversion capabilities",
+            "command": "npx",
+            "args": [
+                "-y",
+                "@modelcontextprotocol/server-time"
+            ],
+            "description": "Time and timezone conversion capabilities"
+        },
+        "everything": {
+            "_comment": "Official MCP reference server demonstrating prompts, resources, and tools",
+            "command": "npx",
+            "args": [
+                "-y",
+                "@modelcontextprotocol/server-everything"
+            ],
+            "description": "Reference server with prompts, resources, and tools demonstrations"
+        },
+        "brave-search": {
+            "_comment": "Brave Search MCP server for web and local search",
+            "command": "npx",
+            "args": [
+                "-y",
+                "brave-search-mcp-server"
+            ],
+            "env": {
+                "BRAVE_API_KEY": "${BRAVE_API_KEY}"
+            },
+            "description": "Web and local search using Brave's Search API"
+        },
+        "github": {
+            "_comment": "Community MCP server for GitHub API integration",
+            "url": "https://github-mcp.example.com",
+            "env": {
+                "GITHUB_TOKEN": "${GITHUB_TOKEN}"
+            },
+            "description": "Repository management, file operations, and GitHub API integration"
+        },
+        "slack": {
+            "_comment": "Community MCP server for Slack integration",
+            "command": "npx",
+            "args": [
+                "-y",
+                "slack-mcp-server"
+            ],
+            "env": {
+                "SLACK_BOT_TOKEN": "${SLACK_BOT_TOKEN}",
+                "SLACK_APP_TOKEN": "${SLACK_APP_TOKEN}"
+            },
+            "description": "Slack channel management and messaging capabilities"
+        },
+        "postgres": {
+            "_comment": "MCP server for PostgreSQL database access with schema inspection",
+            "command": "npx",
+            "args": [
+                "-y",
+                "@modelcontextprotocol/server-postgres"
+            ],
+            "env": {
+                "DATABASE_URL": "${DATABASE_URL}"
+            },
+            "description": "Read-only database access with schema inspection and querying"
+        },
+        "sqlite": {
+            "_comment": "MCP server for SQLite database interaction",
+            "command": "npx",
+            "args": [
+                "-y",
+                "@modelcontextprotocol/server-sqlite",
+                "${HOME}/data/imperial.db"
+            ],
+            "description": "Database interaction and business intelligence capabilities"
+        },
+        "redis": {
+            "_comment": "MCP server for Redis key-value store interaction",
+            "command": "npx",
+            "args": [
+                "-y",
+                "@modelcontextprotocol/server-redis"
+            ],
+            "env": {
+                "REDIS_URL": "${REDIS_URL}"
+            },
+            "description": "Interact with Redis key-value stores"
+        },
+        "puppeteer": {
+            "_comment": "MCP server for browser automation and web scraping",
+            "command": "npx",
+            "args": [
+                "-y",
+                "@modelcontextprotocol/server-puppeteer"
+            ],
+            "description": "Browser automation and web scraping capabilities"
         }
     },
     "tools": {
@@ -35,7 +178,13 @@
             "list_os_modules",
             "search_library",
             "get_library_entry",
-            "get_integration_map"
+            "get_integration_map",
+            "filesystem_read",
+            "memory_query",
+            "git_status",
+            "fetch_webpage",
+            "brave_search",
+            "github_search"
         ],
         "write": [
             "generate_strike_output",
@@ -43,7 +192,92 @@
             "list_instruments",
             "get_capital_allocation",
             "submit_capital_allocation",
-            "get_loop_status"
+            "get_loop_status",
+            "memory_store",
+            "git_commit",
+            "slack_message"
         ]
+    },
+    "agentic_modes": {
+        "_comment": "Dual-mode agentic configuration for Qwen and Phi4 models",
+        "qwen": {
+            "enabled": true,
+            "models": [
+                "qwen-2.5-7b-instruct",
+                "qwen-2.5-14b-instruct",
+                "qwen-2.5-32b-instruct",
+                "qwen-2.5-72b-instruct"
+            ],
+            "modes": {
+                "completion": {
+                    "description": "Standard completion mode for text generation",
+                    "max_tokens": 4096,
+                    "temperature": 0.7,
+                    "top_p": 0.9
+                },
+                "agentic": {
+                    "description": "Agentic mode with tool use and multi-step reasoning",
+                    "max_tokens": 8192,
+                    "temperature": 0.5,
+                    "top_p": 0.95,
+                    "enable_tool_use": true,
+                    "enable_planning": true,
+                    "enable_reflection": true
+                }
+            },
+            "reasoning_depth": "extended",
+            "tool_timeout": 30,
+            "api_key_env": "QWEN_API_KEY"
+        },
+        "phi4": {
+            "enabled": true,
+            "models": [
+                "phi-4-mini",
+                "phi-4",
+                "phi-4-medium"
+            ],
+            "modes": {
+                "completion": {
+                    "description": "Standard completion mode for text generation",
+                    "max_tokens": 2048,
+                    "temperature": 0.7,
+                    "top_p": 0.9
+                },
+                "agentic": {
+                    "description": "Agentic mode with structured reasoning and tool orchestration",
+                    "max_tokens": 4096,
+                    "temperature": 0.4,
+                    "top_p": 0.95,
+                    "enable_tool_use": true,
+                    "enable_planning": true,
+                    "enable_structured_output": true
+                }
+            },
+            "reasoning_depth": "standard",
+            "tool_timeout": 25,
+            "api_key_env": "PHI4_API_KEY"
+        }
+    },
+    "agent_orchestration": {
+        "_comment": "Orchestration strategy for multi-model agentic tasks",
+        "routing_strategy": "capability_based",
+        "fallback_order": [
+            "qwen-2.5-32b-instruct",
+            "phi-4",
+            "qwen-2.5-14b-instruct",
+            "phi-4-mini"
+        ],
+        "task_routing": {
+            "reasoning": "qwen-2.5-72b-instruct",
+            "coding": "qwen-2.5-32b-instruct",
+            "planning": "phi-4",
+            "quick_response": "phi-4-mini",
+            "complex_analysis": "qwen-2.5-72b-instruct"
+        },
+        "parallel_execution": {
+            "enabled": true,
+            "max_parallel_tasks": 4,
+            "consensus_threshold": 0.7
+        }
     }
 }
