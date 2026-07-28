@@ -1,0 +1,46 @@
+- name: Bitwarden Secrets Manager GitHub Action
+  # You may pin to the exact commit or the version.
+  # uses: bitwarden/sm-action@1238aae8fc64b212641190a9227c8a734ab1a793
+  uses: bitwarden/sm-action@v3.0.1
+  with:
+    # The machine account access token for retrieving secrets
+    access_token: 
+    # One or more secret Ids to retrieve and the corresponding GitHub environment variable name to set
+    secrets: 
+    # (Optional) The Bitwarden server region to use if cloud-hosted service is used. Either 'us' or 'eu'
+    cloud_region: # optional
+    # (Optional) For self-hosted bitwarden instances provide your https://your.domain.com
+    base_url: # optional, default is 
+    # (Optional) For self-hosted bitwarden instances provide your https://your.domain.com/identity
+    identity_url: # optional, default is 
+    # (Optional) For self-hosted bitwarden instances provide your https://your.domain.com/api
+    api_url: # optional, default is 
+    # (Optional) Set the secrets as environment variables. Defaults to true
+    set_env: # optional, default is true
+
+- name: Bitwarden GitHub Action
+  # You may pin to the exact commit or the version.
+  # uses: pastisprologue/bitwarden-github-action@c2cb14c94b455c222b33f024fcbaabb327e0b0bc
+  uses: pastisprologue/bitwarden-github-action@0.2.0
+  with:
+    # The Bitwarden CLI version to install. (use any semver/dist-tag available)
+    bitwarden-version: # optional, default is latest
+    # Your Bitwarden username, for authentication.
+    bitwarden-username: # optional
+    # Your Bitwarden password, for authentication. (use with secrets)
+    bitwarden-password: # optional
+    # The package manager used to install the Bitwarden CLI. (can be yarn or npm)
+    bitwarden-packager: # optional, default is yarn
+    # If Bitwarden should be stored in the GitHub Actions cache (can be true or false)
+    bitwarden-cache: # optional
+    # A custom remote cache key to use (best to let GitHub Actions handle it)
+    bitwarden-cache-key: # optional
+
+- name: Get Secrets
+  uses: bitwarden/sm-action@v2
+  with:
+    access_token: ${{ secrets.BW_ACCESS_TOKEN }}
+    base_url: https://vault.bitwarden.com
+    secrets: |
+      0.f6496df4-fab6-42fc-a723-b495004a11bf.4Xhu0DkIv1iJB0ZtgHAVYvmJvT2IAb:MD6hUHXx5ZlUH03uR4I7QQ== > IMPERIAL-CODEX
+      
