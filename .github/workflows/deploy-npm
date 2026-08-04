@@ -1,1 +1,29 @@
+# .github/workflows/deploy-npm.yml
+name: Deploy NPM Stack to Hetzner VPS
 
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'infra/npm/**' # Or wherever you store your configuration template
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Deploy to Hetzner VPS via SSH
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: agentdev
+          key: ${{ secrets.VPS_SSH_KEY }}
+          script: |
+            cd /opt/npm
+            git pull origin main
+            docker compose pull
+            docker compose up -d --remove-orphans
+            echo "Nginx Proxy Manager successfully updated and restarted."
