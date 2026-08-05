@@ -1,0 +1,49 @@
+# Git ignore file for Dalizebo 10 Pillars Stack
+
+# Environment files with secrets
+.env
+!.env.example
+
+# Data directories (volumes)
+data/
+backups/
+logs/
+
+# Configuration with secrets
+configs/*/acme.json
+configs/*/*.key
+configs/*/*.pem
+configs/*/*password*
+configs/*/*secret*
+
+# IDE and editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+
+# Docker artifacts (if using buildx cache)
+.docker/
+
+# Node modules (if developing locally)
+node_modules/
+
+# Python cache
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# Build outputs
+dist/
+build/

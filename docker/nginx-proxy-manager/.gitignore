@@ -1,0 +1,25 @@
+# See https://www.gitignore.io/api/docker,linux,node,jetbrains+all to learn why these items are ignored
+
+# Nginx Proxy Manager Data
+data/
+letsencrypt/
+
+# Environment files with secrets
+.env
+
+# Logs
+*.log
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE files
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Backup files
+*.bak
+*.backup

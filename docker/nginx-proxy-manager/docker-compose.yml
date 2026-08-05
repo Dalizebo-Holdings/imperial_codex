@@ -1,0 +1,915 @@
+version: '3.8'
+
+# Modern Full Stack for dalizebo.co.za
+# Includes: Reverse Proxy, Monitoring, Logging, Security, Databases, DevOps Tools
+
+services:
+  # ==================== CORE INFRASTRUCTURE ====================
+
+  # Nginx Proxy Manager - Reverse Proxy & SSL Management
+  nginx-proxy-manager:
+    image: jc21/nginx-proxy-manager:latest
+    container_name: nginx-proxy-manager
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "81:81"
+      - "443:443"
+    volumes:
+      - ./data/npm-data:/data
+      - ./letsencrypt:/etc/letsencrypt
+    environment:
+      - DB_SQLITE_FILE=/data/database.sqlite
+      - PUID=1000
+      - PGID=1000
+      - TZ=Africa/Johannesburg
+    networks:
+      - proxy-network
+      - internal-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:81"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 1G
+        reservations:
+          cpus: '0.5'
+          memory: 256M
+    labels:
+      - "com.centurylinklabs.watchtower.enable=true"
+
+  # Traefik v3 - Modern Reverse Proxy (Alternative to NPM, included for flexibility)
+  traefik:
+    image: traefik:v3.2
+    container_name: traefik
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    ports:
+      - "8080:8080"  # Traefik dashboard
+      - "8081:8081"  # Alternative HTTP
+      - "8443:8443"  # Alternative HTTPS
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ./data/traefik:/etc/traefik
+      - ./letsencrypt-traefik:/letsencrypt
+    environment:
+      - TZ=Africa/Johannesburg
+    networks:
+      - proxy-network
+      - internal-network
+    command:
+      - "--api.dashboard=true"
+      - "--api.insecure=true"
+      - "--providers.docker=true"
+      - "--providers.docker.exposedbydefault=false"
+      - "--entrypoints.web.address=:8080"
+      - "--entrypoints.websecure.address=:8443"
+      - "--certificatesresolvers.myresolver.acme.tlschallenge=true"
+      - "--certificatesresolvers.myresolver.acme.email=admin@dalizebo.co.za"
+      - "--certificatesresolvers.myresolver.acme.storage=/letsencrypt/acme.json"
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.traefik.rule=Host(`traefik.dalizebo.co.za`)"
+      - "traefik.http.routers.traefik.service=api@internal"
+      - "traefik.http.routers.traefik.entrypoints=websecure"
+      - "traefik.http.routers.traefik.tls.certresolver=myresolver"
+      - "com.centurylinklabs.watchtower.enable=true"
+    profiles:
+      - advanced
+
+  # ==================== MONITORING & OBSERVABILITY ====================
+
+  # Uptime Kuma - Monitoring & Status Page
+  uptime-kuma:
+    image: louislam/uptime-kuma:1
+    container_name: uptime-kuma
+    restart: unless-stopped
+    volumes:
+      - ./data/uptime-kuma-data:/app/data
+    environment:
+      - TZ=Africa/Johannesburg
+      - UPTIME_KUMA_PORT=3001
+    networks:
+      - proxy-network
+      - internal-network
+    healthcheck:
+      test: ["CMD", "node", "/app/extra-healthcheck.js"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 512M
+    labels:
+      - "com.centurylinklabs.watchtower.enable=true"
+
+  # Grafana - Advanced Monitoring & Visualization
+  grafana:
+    image: grafana/grafana:latest
+    container_name: grafana
+    restart: unless-stopped
+    user: "472"
+    volumes:
+      - ./data/grafana-data:/var/lib/grafana
+      - ./data/grafana-provisioning:/etc/grafana/provisioning
+    environment:
+      - GF_SECURITY_ADMIN_USER=${GRAFANA_ADMIN_USER:-admin}
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD:-changeme_grafana}
+      - GF_USERS_ALLOW_SIGN_UP=false
+      - GF_SERVER_ROOT_URL=https://grafana.dalizebo.co.za
+      - TZ=Africa/Johannesburg
+    networks:
+      - proxy-network
+      - internal-network
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --spider http://localhost:3000/api/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 512M
+    labels:
+      - "com.centurylinklabs.watchtower.enable=true"
+    profiles:
+      - monitoring
+
+  # Prometheus - Metrics Collection
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: prometheus
+    restart: unless-stopped
+    volumes:
+      - ./data/prometheus-data:/prometheus
+      - ./data/prometheus-config:/etc/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+      - '--web.enable-lifecycle'
+    environment:
+      - TZ=Africa/Johannesburg
+    networks:
+      - internal-network
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:9090/-/healthy"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 1G
+    profiles:
+      - monitoring
+
+  # Node Exporter - System Metrics
+  node-exporter:
+    image: prom/node-exporter:latest
+    container_name: node-exporter
+    restart: unless-stopped
+    pid: host
+    volumes:
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      - /:/rootfs:ro
+    command:
+      - '--path.procfs=/host/proc'
+      - '--path.sysfs=/host/sys'
+      - '--collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc)($$|/)'
+    networks:
+      - internal-network
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 128M
+    profiles:
+      - monitoring
+
+  # Loki - Log Aggregation
+  loki:
+    image: grafana/loki:latest
+    container_name: loki
+    restart: unless-stopped
+    volumes:
+      - ./data/loki-data:/loki
+      - ./data/loki-config:/etc/loki
+    command: -config.file=/etc/loki/local-config.yaml
+    environment:
+      - TZ=Africa/Johannesburg
+    networks:
+      - internal-network
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:3100/ready"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 512M
+    profiles:
+      - monitoring
+
+  # Promtail - Log Shipper
+  promtail:
+    image: grafana/promtail:latest
+    container_name: promtail
+    restart: unless-stopped
+    volumes:
+      - /var/log:/var/log
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro
+      - ./data/promtail-config:/etc/promtail
+    command: -config.file=/etc/promtail/config.yml
+    environment:
+      - TZ=Africa/Johannesburg
+    networks:
+      - internal-network
+    profiles:
+      - monitoring
+
+  # ==================== LOGGING & ANALYTICS ====================
+
+  # Dozzle - Real-time Log Viewer
+  dozzle:
+    image: amir20/dozzle:latest
+    container_name: dozzle
+    restart: unless-stopped
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    environment:
+      - DOZZLE_BASE=/
+      - TZ=Africa/Johannesburg
+    networks:
+      - proxy-network
+      - internal-network
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:8080/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 128M
+    labels:
+      - "com.centurylinklabs.watchtower.enable=true"
+    profiles:
+      - monitoring
+
+  # ==================== SECURITY ====================
+
+  # Fail2Ban - Intrusion Prevention
+  fail2ban:
+    image: crazymax/fail2ban:latest
+    container_name: fail2ban
+    restart: unless-stopped
+    network_mode: host
+    cap_add:
+      - NET_ADMIN
+      - NET_RAW
+    volumes:
+      - ./data/fail2ban-data:/data
+      - ./logs:/var/log
+      - ./data/fail2ban-config:/etc/fail2ban
+    environment:
+      - F2B_LOG_OUTPUT=FILE
+      - F2B_LOG_LEVEL=INFO
+      - TZ=Africa/Johannesburg
+    healthcheck:
+      test: ["CMD", "fail2ban-client", "status"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 256M
+    profiles:
+      - security
+
+  # CrowdSec - Modern IPS (Alternative/Complement to Fail2Ban)
+  crowdsec:
+    image: crowdsecurity/crowdsec:latest
+    container_name: crowdsec
+    restart: unless-stopped
+    environment:
+      - COLLECTIONS=crowdsecurity/linux crowdsecurity/nginx
+      - DISABLE_LOCAL_API=false
+      - AGENT_USERNAME=${CROWDSEC_AGENT_USER:-crowdsec}
+      - AGENT_PASSWORD=${CROWDSEC_AGENT_PASSWORD:-changeme_crowdsec}
+    volumes:
+      - ./data/crowdsec-data:/var/lib/crowdsec/data
+      - ./data/crowdsec-config:/etc/crowdsec
+      - ./logs:/var/log
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    networks:
+      - internal-network
+    healthcheck:
+      test: ["CMD", "cscli", "metrics"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    profiles:
+      - security
+
+  # Vaultwarden - Password Manager (Bitwarden-compatible)
+  vaultwarden:
+    image: dani-garcia/vaultwarden:latest
+    container_name: vaultwarden
+    restart: unless-stopped
+    volumes:
+      - ./data/vaultwarden-data:/data
+    environment:
+      - DOMAIN=https://vault.dalizebo.co.za
+      - ADMIN_TOKEN=${VAULTWARDEN_ADMIN_TOKEN:-changeme_vault_admin}
+      - WEBSOCKET_ENABLED=true
+      - ROCKET_ADDRESS=0.0.0.0
+      - ROCKET_PORT=8000
+      - TZ=Africa/Johannesburg
+    networks:
+      - proxy-network
+      - internal-network
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:8000"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 256M
+    labels:
+      - "com.centurylinklabs.watchtower.enable=true"
+    profiles:
+      - security
+
+  # ==================== DATABASES ====================
+
+  # PostgreSQL - Primary Database
+  postgres:
+    image: postgres:16-alpine
+    container_name: postgres
+    restart: unless-stopped
+    volumes:
+      - ./data/postgres-data:/var/lib/postgresql/data
+      - ./data/postgres-backups:/backups
+      - ./data/postgres-init:/docker-entrypoint-initdb.d
+    environment:
+      - POSTGRES_USER=${POSTGRES_USER:-admin}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-changeme_secure_password}
+      - POSTGRES_DB=${POSTGRES_DB:-dalizebo}
+      - POSTGRES_INITDB_ARGS=--encoding=UTF8 --locale=en_US.UTF-8
+      - TZ=Africa/Johannesburg
+    networks:
+      - internal-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-admin} -d ${POSTGRES_DB:-dalizebo}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 2G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
+    labels:
+      - "com.centurylinklabs.watchtower.enable=true"
+
+  # PgAdmin - PostgreSQL Administration
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    container_name: pgadmin
+    restart: unless-stopped
+    volumes:
+      - ./data/pgadmin-data:/var/lib/pgadmin
+    environment:
+      - PGADMIN_DEFAULT_EMAIL=${PGADMIN_EMAIL:-admin@dalizebo.co.za}
+      - PGADMIN_DEFAULT_PASSWORD=${PGADMIN_PASSWORD:-changeme_pgadmin}
+      - PGADMIN_CONFIG_SERVER_MODE=False
+      - PGADMIN_CONFIG_MASTER_PASSWORD_REQUIRED=False
+      - TZ=Africa/Johannesburg
+    networks:
+      - proxy-network
+      - internal-network
+    depends_on:
+      - postgres
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:80/misc/ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 256M
+    labels:
+      - "com.centurylinklabs.watchtower.enable=true"
+    profiles:
+      - databases
+
+  # MariaDB - Alternative Database
+  mariadb:
+    image: mariadb:11
+    container_name: mariadb
+    restart: unless-stopped
+    volumes:
+      - ./data/mariadb-data:/var/lib/mysql
+      - ./data/mariadb-backups:/backups
+      - ./data/mariadb-init:/docker-entrypoint-initdb.d
+    environment:
+      - MYSQL_ROOT_PASSWORD=${MYSQL_ROOT_PASSWORD:-changeme_secure_root}
+      - MYSQL_DATABASE=${MYSQL_DATABASE:-dalizebo}
+      - MYSQL_USER=${MYSQL_USER:-dalizebo_user}
+      - MYSQL_PASSWORD=${MYSQL_PASSWORD:-changeme_secure_user}
+      - TZ=Africa/Johannesburg
+    networks:
+      - internal-network
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${MYSQL_ROOT_PASSWORD:-changeme_secure_root}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 2G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
+    labels:
+      - "com.centurylinklabs.watchtower.enable=true"
+    profiles:
+      - databases
+
+  # Adminer - Universal Database Manager
+  adminer:
+    image: adminer:latest
+    container_name: adminer
+    restart: unless-stopped
+    environment:
+      - ADMINER_DEFAULT_SERVER=mysql
+      - TZ=Africa/Johannesburg
+    networks:
+      - proxy-network
+      - internal-network
+    depends_on:
+      - postgres
+      - mariadb
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:8080"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          cpus: '0.25'
+          memory: 128M
+    labels:
+      - "com.centurylinklabs.watchtower.enable=true"
+    profiles:
+      - databases
+
+  # Redis - Caching & Message Broker
+  redis:
+    image: redis:7-alpine
+    container_name: redis
+    restart: unless-stopped
+    command: >
+      redis-server 
+      --appendonly yes 
+      --maxmemory 256mb 
+      --maxmemory-policy allkeys-lru
+      --requirepass ${REDIS_PASSWORD:-changeme_redis}
+    volumes:
+      - ./data/redis-data:/data
+    environment:
+      - TZ=Africa/Johannesburg
+    networks:
+      - internal-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD:-changeme_redis}", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+        reservations:
+          cpus: '0.25'
+          memory: 128M
+    labels:
+      - "com.centurylinklabs.watchtower.enable=true"
+
+  # Redis Commander - Redis GUI
+  redis-commander:
+    image: rediscommander/redis-commander:latest
+    container_name: redis-commander
+    restart: unless-stopped
+    environment:
+      - REDIS_HOSTS=local:redis:${REDIS_PASSWORD:-changeme_redis}
+      - HTTP_USER=${REDIS_COMMANDER_USER:-admin}
+      - HTTP_PASSWORD=${REDIS_COMMANDER_PASSWORD:-changeme_redis_ui}
+      - TZ=Africa/Johannesburg
+    networks:
+      - proxy-network
+      - internal-network
+    depends_on:
+      - redis
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:8081"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          cpus: '0.25'
+          memory: 128M
+    labels:
+      - "com.centurylinklabs.watchtower.enable=true"
+    profiles:
+      - databases
+
+  # MongoDB - NoSQL Database
+  mongodb:
+    image: mongo:7
+    container_name: mongodb
+    restart: unless-stopped
+    volumes:
+      - ./data/mongodb-data:/data/db
+      - ./data/mongodb-backups:/backups
+    environment:
+      - MONGO_INITDB_ROOT_USERNAME=${MONGO_ROOT_USER:-admin}
+      - MONGO_INITDB_ROOT_PASSWORD=${MONGO_ROOT_PASSWORD:-changeme_mongo}
+      - TZ=Africa/Johannesburg
+    networks:
+      - internal-network
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 2G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
+    labels:
+      - "com.centurylinklabs.watchtower.enable=true"
+    profiles:
+      - databases
+
+  # Mongo Express - MongoDB GUI
+  mongo-express:
+    image: mongo-express:latest
+    container_name: mongo-express
+    restart: unless-stopped
+    environment:
+      - ME_CONFIG_MONGODB_ADMINUSERNAME=${MONGO_ROOT_USER:-admin}
+      - ME_CONFIG_MONGODB_ADMINPASSWORD=${MONGO_ROOT_PASSWORD:-changeme_mongo}
+      - ME_CONFIG_MONGODB_URL=mongodb://${MONGO_ROOT_USER:-admin}:${MONGO_ROOT_PASSWORD:-changeme_mongo}@mongodb:27017/
+      - ME_CONFIG_BASICAUTH_USERNAME=${MONGO_EXPRESS_USER:-admin}
+      - ME_CONFIG_BASICAUTH_PASSWORD=${MONGO_EXPRESS_PASSWORD:-changeme_mongo_ui}
+      - TZ=Africa/Johannesburg
+    networks:
+      - proxy-network
+      - internal-network
+    depends_on:
+      - mongodb
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:8081"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          cpus: '0.25'
+          memory: 128M
+    labels:
+      - "com.centurylinklabs.watchtower.enable=true"
+    profiles:
+      - databases
+
+  # ==================== DEVOPS & UTILITIES ====================
+
+  # Watchtower - Auto-update Containers
+  watchtower:
+    image: containrrr/watchtower:latest
+    container_name: watchtower
+    restart: unless-stopped
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    environment:
+      - WATCHTOWER_POLL_INTERVAL=86400
+      - WATCHTOWER_CLEANUP=true
+      - WATCHTOWER_NOTIFICATIONS_LEVEL=info
+      - WATCHTOWER_INCLUDE_STOPPED=true
+      - TZ=Africa/Johannesburg
+    networks:
+      - internal-network
+    labels:
+      - "com.centurylinklabs.watchtower.enable=false"
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 256M
+
+  # Portainer - Docker Management UI
+  portainer:
+    image: portainer/portainer-ce:latest
+    container_name: portainer
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    volumes:
+      - ./data/portainer-data:/data
+      - /var/run/docker.sock:/var/run/docker.sock
+    environment:
+      - TZ=Africa/Johannesburg
+    networks:
+      - proxy-network
+      - internal-network
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:9000/api/status"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 512M
+    labels:
+      - "com.centurylinklabs.watchtower.enable=true"
+      - "traefik.enable=false"
+
+  # File Browser - Web-based File Manager
+  filebrowser:
+    image: filebrowser/filebrowser:latest
+    container_name: filebrowser
+    restart: unless-stopped
+    user: "1000:1000"
+    volumes:
+      - ./data/filebrowser-data:/srv
+      - ./data/filebrowser-db:/database
+      - ./data/filebrowser-config:/.filebrowser.json
+    environment:
+      - FB_ADDRESS=0.0.0.0
+      - FB_PORT=8080
+      - FB_DATABASE=/database/filebrowser.db
+      - FB_ROOT=/srv
+      - TZ=Africa/Johannesburg
+    networks:
+      - proxy-network
+      - internal-network
+    healthcheck:
+      test: ["CMD", "filebrowser", "healthcheck"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 256M
+    labels:
+      - "com.centurylinklabs.watchtower.enable=true"
+
+  # VS Code Server - Web IDE
+  code-server:
+    image: codercom/code-server:latest
+    container_name: code-server
+    restart: unless-stopped
+    user: root
+    volumes:
+      - ./data/code-server-data:/home/coder/.local/share/code-server
+      - ./workspace:/workspace
+    environment:
+      - PASSWORD=${CODE_SERVER_PASSWORD:-changeme_code}
+      - TZ=Africa/Johannesburg
+    networks:
+      - proxy-network
+      - internal-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 2G
+    labels:
+      - "com.centurylinklabs.watchtower.enable=true"
+    profiles:
+      - devops
+
+  # Gitea - Git Server
+  gitea:
+    image: gitea/gitea:latest
+    container_name: gitea
+    restart: unless-stopped
+    volumes:
+      - ./data/gitea-data:/data
+      - /etc/timezone:/etc/timezone:ro
+      - /etc/localtime:/etc/localtime:ro
+    environment:
+      - USER_UID=1000
+      - USER_GID=1000
+      - GITEA__database__DB_TYPE=postgres
+      - GITEA__database__HOST=postgres:5432
+      - GITEA__database__NAME=gitea
+      - GITEA__database__USER=${POSTGRES_USER:-admin}
+      - GITEA__database__PASSWD=${POSTGRES_PASSWORD:-changeme_secure_password}
+      - TZ=Africa/Johannesburg
+    networks:
+      - proxy-network
+      - internal-network
+    depends_on:
+      - postgres
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:3000"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 1G
+    labels:
+      - "com.centurylinklabs.watchtower.enable=true"
+    profiles:
+      - devops
+
+  # Drone CI - Continuous Integration
+  drone-server:
+    image: drone/drone:latest
+    container_name: drone-server
+    restart: unless-stopped
+    volumes:
+      - ./data/drone-data:/data
+    environment:
+      - DRONE_SERVER_HOST=drone.dalizebo.co.za
+      - DRONE_SERVER_PROTO=https
+      - DRONE_RPC_SECRET=${DRONE_RPC_SECRET:-changeme_drone_secret}
+      - DRONE_GITHUB_SERVER=https://github.com
+      - DRONE_GITHUB_CLIENT_ID=${DRONE_GITHUB_CLIENT_ID:-}
+      - DRONE_GITHUB_CLIENT_SECRET=${DRONE_GITHUB_CLIENT_SECRET:-}
+      - TZ=Africa/Johannesburg
+    networks:
+      - proxy-network
+      - internal-network
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:80"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 512M
+    profiles:
+      - devops
+
+  drone-runner:
+    image: drone/drone-runner-docker:latest
+    container_name: drone-runner
+    restart: unless-stopped
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    environment:
+      - DRONE_RPC_PROTO=http
+      - DRONE_RPC_HOST=drone-server
+      - DRONE_RPC_SECRET=${DRONE_RPC_SECRET:-changeme_drone_secret}
+      - DRONE_RUNNER_NAME=dalizebo-runner
+      - DRONE_RUNNER_CAPACITY=2
+      - TZ=Africa/Johannesburg
+    networks:
+      - internal-network
+    depends_on:
+      - drone-server
+    profiles:
+      - devops
+
+  # ==================== BACKUP & MAINTENANCE ====================
+
+  # Borg Backup - Deduplicating Backup
+  borgbackup:
+    image: pschiffe/borgmatic:latest
+    container_name: borgbackup
+    restart: unless-stopped
+    volumes:
+      - ./data/backup-source:/source:ro
+      - ./data/borg-backup:/backup
+      - ./data/borg-config:/etc/borgmatic
+    environment:
+      - BORG_UNKNOWN_UNENCRYPTED_REPO_ACCESS_IS_OK=yes
+      - TZ=Africa/Johannesburg
+    networks:
+      - internal-network
+    profiles:
+      - backup
+
+  # ==================== NETWORKING ====================
+
+  # Cloudflared - Cloudflare Tunnel (Optional)
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    container_name: cloudflared
+    restart: unless-stopped
+    command: tunnel run
+    environment:
+      - TUNNEL_TOKEN=${CLOUDFLARE_TUNNEL_TOKEN:-}
+      - TZ=Africa/Johannesburg
+    networks:
+      - internal-network
+    profiles:
+      - networking
+
+  # WireGuard - VPN Server
+  wireguard:
+    image: linuxserver/wireguard:latest
+    container_name: wireguard
+    restart: unless-stopped
+    cap_add:
+      - NET_ADMIN
+      - SYS_MODULE
+    volumes:
+      - ./data/wireguard-data:/config
+      - /lib/modules:/lib/modules
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=Africa/Johannesburg
+      - SERVERURL=2.28.6.68
+      - SERVERPORT=51820
+    networks:
+      - internal-network
+    ports:
+      - "51820:51820/udp"
+    sysctls:
+      - net.ipv4.conf.all.src_valid_mark=1
+    profiles:
+      - networking
+
+networks:
+  proxy-network:
+    driver: bridge
+    name: npm-proxy
+    ipam:
+      config:
+        - subnet: 172.28.0.0/16
+  internal-network:
+    driver: bridge
+    name: npm-internal
+    internal: true
+    ipam:
+      config:
+        - subnet: 172.29.0.0/16
