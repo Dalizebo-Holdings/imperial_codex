@@ -1,0 +1,14 @@
+inputSet:
+  name: Build_Dalizebo_Holdings_imperial_codex_1786478658100-pr-trigger-input-set
+  identifier: Build_Dalizebo_Holdings_imperial_codex_1786478658100prtriggerinputset
+  orgIdentifier: default
+  projectIdentifier: default_project
+  pipeline:
+    identifier: Build_Dalizebo_Holdings_imperial_codex_1786478658100
+    properties:
+      ci:
+        codebase:
+          build:
+            type: PR
+            spec:
+              number: <+trigger.prNumber>
