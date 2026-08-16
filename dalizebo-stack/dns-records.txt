@@ -1,0 +1,36 @@
+# ==========================================
+# DALIZEBO.CO.ZA - REQUIRED DNS RECORDS
+# ==========================================
+# Add these records to your Cloudflare DNS settings
+# All records point to: 2.28.6.68
+# ==========================================
+
+Type    Name                    Content         Proxy Status
+----    ----                    -------         ------------
+A       @                       2.28.6.68       Proxied (Orange)
+A       www                     2.28.6.68       Proxied (Orange)
+A       cockpit                 2.28.6.68       Proxied (Orange)
+A       status                  2.28.6.68       Proxied (Orange)
+A       office                  2.28.6.68       Proxied (Orange)
+A       vault                   2.28.6.68       Proxied (Orange)
+A       chat                    2.28.6.68       Proxied (Orange)
+A       erp                     2.28.6.68       Proxied (Orange)
+A       n8n                     2.28.6.68       Proxied (Orange)
+A       git                     2.28.6.68       Proxied (Orange)
+A       ai                      2.28.6.68       Proxied (Orange)
+A       studio                  2.28.6.68       Proxied (Orange)
+
+# Wildcard for future subdomains (optional but recommended)
+A       *                       2.28.6.68       Proxied (Orange)
+
+# ==========================================
+# CLOUDFLARE SSL/TLS SETTINGS
+# ==========================================
+# 1. Go to SSL/TLS > Overview
+# 2. Set encryption mode to "Full" or "Full (strict)"
+# 3. Enable "Always Use HTTPS" under SSL/TLS > Edge Certificates
+# 4. Enable "Automatic HTTPS Rewrites"
+# ==========================================
+
+# After adding these records, wait 5 minutes for propagation
+# Then run: ./deploy.sh

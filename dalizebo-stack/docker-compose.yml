@@ -1,0 +1,422 @@
+services:
+  # --- Pillar 1: Executive Cockpit & Reverse Proxy ---
+  traefik:
+    image: traefik:v3.0
+    container_name: traefik
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    ports:
+      - "80:80"
+      - "443:443"
+      - "8080:8080"
+    volumes:
+      - /etc/localtime:/etc/localtime:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ./configs/traefik:/etc/traefik:ro
+      - traefik-certs:/letsencrypt
+    networks:
+      - proxy
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.dashboard.rule=Host(`traefik.dalizebo.co.za`)"
+      - "traefik.http.routers.dashboard.service=api@internal"
+      - "traefik.http.routers.dashboard.entrypoints=websecure"
+      - "traefik.http.routers.dashboard.tls=true"
+      - "traefik.http.routers.dashboard.middlewares=auth"
+    environment:
+      - CLOUDFLARE_API_TOKEN=${CLOUDFLARE_API_TOKEN}
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 256M
+
+  prometheus:
+    image: prom/prometheus:v2.45.0
+    container_name: prometheus
+    restart: unless-stopped
+    volumes:
+      - ./configs/prometheus:/etc/prometheus
+      - prometheus-data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--storage.tsdb.retention.time=15d'
+    networks:
+      - monitoring
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+
+  grafana:
+    image: grafana/grafana:10.0.0
+    container_name: grafana
+    restart: unless-stopped
+    environment:
+      - GF_SECURITY_ADMIN_USER=${GRAFANA_ADMIN_USER:-admin}
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD:-admin123}
+      - GF_INSTALL_PLUGINS=grafana-piechart-panel
+    volumes:
+      - grafana-data:/var/lib/grafana
+    networks:
+      - monitoring
+      - proxy
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.grafana.rule=Host(`cockpit.dalizebo.co.za`)"
+      - "traefik.http.routers.grafana.entrypoints=websecure"
+      - "traefik.http.routers.grafana.tls=true"
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 256M
+
+  uptime-kuma:
+    image: louislam/uptime-kuma:1
+    container_name: uptime-kuma
+    restart: unless-stopped
+    volumes:
+      - kuma-data:/app/data
+    networks:
+      - monitoring
+      - proxy
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.kuma.rule=Host(`status.dalizebo.co.za`)"
+      - "traefik.http.routers.kuma.entrypoints=websecure"
+      - "traefik.http.routers.kuma.tls=true"
+    deploy:
+      resources:
+        limits:
+          cpus: '0.3'
+          memory: 256M
+
+  # --- Pillar 2: Manager's Office ---
+  nextcloud:
+    image: nextcloud:stable
+    container_name: nextcloud
+    restart: unless-stopped
+    environment:
+      - NEXTCLOUD_ADMIN_USER=admin
+      - NEXTCLOUD_ADMIN_PASSWORD=${NEXTCLOUD_ADMIN_PASSWORD:-admin123}
+      - MYSQL_HOST=mariadb-nextcloud
+      - MYSQL_DATABASE=nextcloud
+      - MYSQL_USER=nextcloud
+      - MYSQL_PASSWORD=${MYSQL_PASSWORD_NEXTCLOUD:-nextcloud123}
+    volumes:
+      - nextcloud-data:/var/www/html
+    depends_on:
+      - mariadb-nextcloud
+    networks:
+      - proxy
+      - db-network
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.nextcloud.rule=Host(`office.dalizebo.co.za`)"
+      - "traefik.http.routers.nextcloud.entrypoints=websecure"
+      - "traefik.http.routers.nextcloud.tls=true"
+    deploy:
+      resources:
+        limits:
+          cpus: '0.8'
+          memory: 512M
+
+  mariadb-nextcloud:
+    image: mariadb:10.6
+    container_name: mariadb-nextcloud
+    restart: unless-stopped
+    environment:
+      - MYSQL_ROOT_PASSWORD=${MYSQL_ROOT_PASSWORD:-root123}
+      - MYSQL_DATABASE=nextcloud
+      - MYSQL_USER=nextcloud
+      - MYSQL_PASSWORD=${MYSQL_PASSWORD_NEXTCLOUD:-nextcloud123}
+    volumes:
+      - nextcloud-db:/var/lib/mysql
+    networks:
+      - db-network
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+
+  vaultwarden:
+    image: vaultwarden/server:latest
+    container_name: vaultwarden
+    restart: unless-stopped
+    environment:
+      - DOMAIN=https://vault.dalizebo.co.za
+      - ADMIN_TOKEN=${VAULTWARDEN_ADMIN_TOKEN:-changeme}
+      - SIGNUPS_ALLOWED=false
+      - WEBSOCKET_ENABLED=true
+    volumes:
+      - vaultwarden-data:/data
+    networks:
+      - proxy
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.vault.rule=Host(`vault.dalizebo.co.za`)"
+      - "traefik.http.routers.vault.entrypoints=websecure"
+      - "traefik.http.routers.vault.tls=true"
+    deploy:
+      resources:
+        limits:
+          cpus: '0.3'
+          memory: 128M
+
+  chatwoot:
+    image: chatwoot/chatwoot:latest
+    container_name: chatwoot
+    restart: unless-stopped
+    command: ['/bundle', 'exec', 'rails', 's', '-p', '3000', '-b', '0.0.0.0']
+    environment:
+      - FRONTEND_URL=https://chat.dalizebo.co.za
+      - SECRET_KEY_BASE=${CHATWOOT_SECRET_KEY:-changeitnow123}
+      - POSTGRES_HOST=postgres-chatwoot
+      - POSTGRES_PORT=5432
+      - POSTGRES_DATABASE=chatwoot
+      - POSTGRES_USER=chatwoot
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD_CHATWOOT:-chatwoot123}
+      - REDIS_URL=redis://redis-chatwoot:6379
+      - INSTALLATION_ENV=docker
+    depends_on:
+      - postgres-chatwoot
+      - redis-chatwoot
+    networks:
+      - proxy
+      - db-network
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.chatwoot.rule=Host(`chat.dalizebo.co.za`)"
+      - "traefik.http.routers.chatwoot.entrypoints=websecure"
+      - "traefik.http.routers.chatwoot.tls=true"
+    deploy:
+      resources:
+        limits:
+          cpus: '0.8'
+          memory: 1G
+
+  postgres-chatwoot:
+    image: postgres:14-alpine
+    container_name: postgres-chatwoot
+    restart: unless-stopped
+    environment:
+      - POSTGRES_DB=chatwoot
+      - POSTGRES_USER=chatwoot
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD_CHATWOOT:-chatwoot123}
+    volumes:
+      - chatwoot-db:/var/lib/postgresql/data
+    networks:
+      - db-network
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+
+  redis-chatwoot:
+    image: redis:alpine
+    container_name: redis-chatwoot
+    restart: unless-stopped
+    volumes:
+      - redis-chatwoot-data:/data
+    networks:
+      - db-network
+    deploy:
+      resources:
+        limits:
+          cpus: '0.2'
+          memory: 128M
+
+  # --- Pillar 3: Fintech & Databases ---
+  postgres:
+    image: postgres:15-alpine
+    container_name: postgres
+    restart: unless-stopped
+    environment:
+      - POSTGRES_USER=${SUPABASE_DB_USER:-postgres}
+      - POSTGRES_PASSWORD=${SUPABASE_DB_PASSWORD:-postgres123}
+      - POSTGRES_DB=maindb
+    volumes:
+      - postgres-main:/var/lib/postgresql/data
+    networks:
+      - db-network
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+
+  redis:
+    image: redis:alpine
+    container_name: redis
+    restart: unless-stopped
+    volumes:
+      - redis-data:/data
+    networks:
+      - db-network
+    deploy:
+      resources:
+        limits:
+          cpus: '0.2'
+          memory: 128M
+
+  # --- Pillar 4 & 5: AI & Storefront Backend ---
+  supabase-db:
+    image: supabase/postgres:15.1.0.117
+    container_name: supabase-db
+    restart: unless-stopped
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=${SUPABASE_DB_PASSWORD:-postgres123}
+      - POSTGRES_DB=supabase
+      - JWT_SECRET=${SUPABASE_JWT_SECRET:-supersecretjwtkey12345678901234567890}
+    volumes:
+      - supabase-db-data:/var/lib/postgresql/data
+    networks:
+      - db-network
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+
+  ollama:
+    image: ollama/ollama:latest
+    container_name: ollama
+    restart: unless-stopped
+    volumes:
+      - ollama-data:/root/.ollama
+    networks:
+      - proxy
+      - ai-network
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.ollama.rule=Host(`ai.dalizebo.co.za`)"
+      - "traefik.http.routers.ollama.entrypoints=websecure"
+      - "traefik.http.routers.ollama.tls=true"
+    deploy:
+      resources:
+        limits:
+          cpus: '0.9'
+          memory: 2G
+
+  # --- Pillar 7: Automation ---
+  n8n:
+    image: n8n/n8n:latest
+    container_name: n8n
+    restart: unless-stopped
+    environment:
+      - N8N_HOST=n8n.dalizebo.co.za
+      - N8N_PORT=5678
+      - N8N_PROTOCOL=https
+      - WEBHOOK_URL=https://n8n.dalizebo.co.za/
+      - GENERIC_TIMEZONE=Africa/Johannesburg
+      - DB_TYPE=postgresdb
+      - DB_POSTGRESDB_HOST=postgres
+      - DB_POSTGRESDB_PORT=5432
+      - DB_POSTGRESDB_DATABASE=maindb
+      - DB_POSTGRESDB_USER=${SUPABASE_DB_USER:-postgres}
+      - DB_POSTGRESDB_PASSWORD=${SUPABASE_DB_PASSWORD:-postgres123}
+    volumes:
+      - n8n-data:/home/node/.n8n
+    networks:
+      - proxy
+      - db-network
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.n8n.rule=Host(`n8n.dalizebo.co.za`)"
+      - "traefik.http.routers.n8n.entrypoints=websecure"
+      - "traefik.http.routers.n8n.tls=true"
+    deploy:
+      resources:
+        limits:
+          cpus: '0.6'
+          memory: 512M
+
+  # --- Pillar 8: Security ---
+  crowdsec:
+    image: crowdsecurity/crowdsec:latest
+    container_name: crowdsec
+    restart: unless-stopped
+    environment:
+      - GID=1000
+      - COLLECTIONS=crowdsecurity/traefik crowdsecurity/linux
+    volumes:
+      - ./configs/crowdsec/acquis.yaml:/etc/crowdsec/acquis.yaml:ro
+      - crowdsec-db:/var/lib/crowdsec/data
+      - crowdsec-config:/etc/crowdsec
+      - /var/log:/var/log:ro
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro
+    networks:
+      - proxy
+    deploy:
+      resources:
+        limits:
+          cpus: '0.3'
+          memory: 256M
+
+  # --- Pillar 9: R&D ---
+  gitea:
+    image: gitea/gitea:latest
+    container_name: gitea
+    restart: unless-stopped
+    environment:
+      - USER_UID=1000
+      - USER_GID=1000
+      - GITEA__database__DB_TYPE=postgres
+      - GITEA__database__HOST=postgres:5432
+      - GITEA__database__NAME=gitea
+      - GITEA__database__USER=${SUPABASE_DB_USER:-postgres}
+      - GITEA__database__PASSWD=${SUPABASE_DB_PASSWORD:-postgres123}
+    volumes:
+      - gitea-data:/data
+      - /etc/timezone:/etc/timezone:ro
+      - /etc/localtime:/etc/localtime:ro
+    networks:
+      - proxy
+      - db-network
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.gitea.rule=Host(`git.dalizebo.co.za`)"
+      - "traefik.http.routers.gitea.entrypoints=websecure"
+      - "traefik.http.routers.gitea.tls=true"
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+
+networks:
+  proxy:
+    external: true
+    name: traefik_proxy
+  db-network:
+    internal: true
+  monitoring:
+    internal: true
+  ai-network:
+    internal: true
+
+volumes:
+  traefik-certs:
+  prometheus-data:
+  grafana-data:
+  kuma-data:
+  nextcloud-data:
+  nextcloud-db:
+  vaultwarden-data:
+  chatwoot-db:
+  redis-chatwoot-data:
+  postgres-main:
+  redis-data:
+  supabase-db-data:
+  ollama-data:
+  n8n-data:
+  crowdsec-db:
+  crowdsec-config:
+  gitea-data:

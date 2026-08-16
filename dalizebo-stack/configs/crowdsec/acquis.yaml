@@ -1,0 +1,18 @@
+# CrowdSec Acquisition Configuration
+# Monitors Traefik, System Logs, and Application Logs
+
+files:
+  - path: /var/log/traefik/access.log
+    labels:
+      type: traefik
+  - path: /var/log/auth.log
+    labels:
+      type: syslog
+  - path: /var/log/syslog
+    labels:
+      type: syslog
+
+====================
+# Acquis configuration file for crowdsec
+# This file is used to define the log files to be parsed by crowdsec
+# More information: https://doc.crowdsec.net/docs/reference/acquis
