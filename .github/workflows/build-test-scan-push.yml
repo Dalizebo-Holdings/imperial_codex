@@ -14,7 +14,7 @@ on:
 
 env:
   DOCKER_HUB_IMAGE: ${{ secrets.DOCKER_HUB_USERNAME }}/imperial-codex
-  GHCR_IMAGE: ghcr.io/${{ github.repository }}
+  GHCR_IMAGE: ghcr.io/dalizebo-holdings/imperial_codex
 
 jobs:
   build-and-test:
