@@ -1,0 +1,187 @@
+# ============================================================
+# Imperial Codex — Dual-Model Stack
+# Qwen 2.5 7B (primary) + Phi-4 mini (fallback) via Ollama
+# + FastAPI Router
+# Continue.dev connects to router on :8000
+# Agent Canvas (formerly OpenHands UI) on :3000 (optional — comment out if not needed)
+# System: 12GB RAM, CPU-only
+# ============================================================
+
+services:
+  # ----------------------------------------------------------
+  # Ollama: Qwen 2.5 7B — coding & reasoning (primary)
+  # ----------------------------------------------------------
+  qwen36:
+    image: ollama/ollama:0.9.2
+    container_name: qwen36
+    ports:
+      - "127.0.0.1:8001:11434"
+    environment:
+      - OLLAMA_NUM_PARALLEL=1
+      - OLLAMA_NUM_THREAD=${QWEN_NUM_THREADS:-4}
+      - OLLAMA_MAX_LOADED_MODELS=1
+      - OLLAMA_KEEP_ALIVE=10m
+    volumes:
+      - qwen36_models:/root/.ollama
+    deploy:
+      resources:
+        limits:
+          memory: ${QWEN_MEM_LIMIT:-6g}
+        reservations:
+          memory: ${QWEN_MEM_RESERVE:-4g}
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:11434/api/tags"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 90s
+    networks:
+      - agent-net
+
+  # ----------------------------------------------------------
+  # Ollama: Phi-4 mini — fast fallback
+  # ----------------------------------------------------------
+  phi4mini:
+    image: ollama/ollama:0.9.2
+    container_name: phi4mini
+    ports:
+      - "127.0.0.1:8002:11434"
+    environment:
+      - OLLAMA_NUM_PARALLEL=1
+      - OLLAMA_NUM_THREAD=${PHI_NUM_THREADS:-2}
+      - OLLAMA_MAX_LOADED_MODELS=1
+      - OLLAMA_KEEP_ALIVE=10m
+    volumes:
+      - phi4mini_models:/root/.ollama
+    deploy:
+      resources:
+        limits:
+          memory: ${PHI_MEM_LIMIT:-4g}
+        reservations:
+          memory: ${PHI_MEM_RESERVE:-3g}
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:11434/api/tags"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 90s
+    networks:
+      - agent-net
+
+  # ----------------------------------------------------------
+  # Model init: pulls both models on first run then exits
+  # ----------------------------------------------------------
+  model-init:
+    image: ollama/ollama:0.9.2
+    container_name: model-init
+    depends_on:
+      qwen36:
+        condition: service_healthy
+      phi4mini:
+        condition: service_healthy
+    entrypoint: ["/bin/sh", "-c"]
+    command: >
+      "
+        echo '=== Pulling qwen2.5:7b-instruct ===' &&
+        OLLAMA_HOST=http://qwen36:11434 ollama pull qwen2.5:7b-instruct &&
+        echo '=== Pulling phi4-mini ===' &&
+        OLLAMA_HOST=http://phi4mini:11434 ollama pull phi4-mini &&
+        echo '=== Model init complete ==='
+      "
+    networks:
+      - agent-net
+    restart: "no"
+
+  # ----------------------------------------------------------
+  # FastAPI Router: routes prompts to Qwen or Phi
+  # Continue.dev points here: http://localhost:8000
+  # ----------------------------------------------------------
+  router:
+    build:
+      context: .
+      dockerfile: Dockerfile.router
+    container_name: model-router
+    ports:
+      - "127.0.0.1:8000:8000"
+    environment:
+      - QWEN_URL=http://qwen36:11434
+      - PHI_URL=http://phi4mini:11434
+      - QWEN_MODEL=qwen2.5:7b-instruct
+      - PHI_MODEL=phi4-mini
+      - LOG_LEVEL=${LOG_LEVEL:-info}
+    depends_on:
+      qwen36:
+        condition: service_healthy
+      phi4mini:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:8000/health"]
+      interval: 20s
+      timeout: 5s
+      retries: 3
+    networks:
+      - agent-net
+
+  # ----------------------------------------------------------
+  # Agent Canvas (formerly OpenHands UI) — optional, comment out to save memory
+  # UI: http://localhost:3000
+  # NOTE: the old ghcr.io/all-hands-ai/openhands image is deprecated.
+  # The project moved to ghcr.io/openhands/agent-canvas.
+  # ----------------------------------------------------------
+  openhands:
+    image: ghcr.io/openhands/agent-canvas:1
+    container_name: openhands
+    ports:
+      - "0.0.0.0:3000:8000"
+    environment:
+      - LLM_MODEL=ollama/qwen2.5:7b-instruct
+      - LLM_BASE_URL=http://qwen36:11434
+      - LLM_API_KEY=ollama
+      - LLM_OLLAMA_BASE_URL=http://qwen36:11434
+      - FALLBACK_LLM_MODEL=ollama/phi4-mini
+      - FALLBACK_LLM_BASE_URL=http://phi4mini:11434
+      - SANDBOX_TYPE=docker
+      - SANDBOX_USER_ID=1000
+      - LOG_LEVEL=${LOG_LEVEL:-info}
+      - DEBUG=${DEBUG:-false}
+      - HF_TOKEN=${HF_TOKEN}
+    volumes:
+      - openhands_state:/home/openhands/.openhands
+      - ${WORKSPACE_MOUNT_PATH:-./workspace}:/projects
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    depends_on:
+      qwen36:
+        condition: service_healthy
+      phi4mini:
+        condition: service_healthy
+      router:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - agent-net
+
+# ----------------------------------------------------------
+# Volumes
+# ----------------------------------------------------------
+volumes:
+  qwen36_models:
+    driver: local
+    name: imperial-qwen36-models
+  phi4mini_models:
+    driver: local
+    name: imperial-phi4mini-models
+  openhands_state:
+    driver: local
+    name: imperial-openhands-state
+
+# ----------------------------------------------------------
+# Networks
+# ----------------------------------------------------------
+networks:
+  agent-net:
+    name: imperial-agent-net
+    driver: bridge

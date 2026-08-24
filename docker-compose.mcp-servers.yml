@@ -1,0 +1,220 @@
+version: '3.8'
+
+services:
+  # Imperial Codex MCP Server
+  mcp-imperial-codex:
+    build:
+      context: .
+      dockerfile: docker/mcp.dockerfile
+    container_name: mcp-imperial-codex
+    ports:
+      - "3001:3001"
+    env_file:
+      - .env.local
+    environment:
+      NODE_ENV: development
+      PORT: 3001
+      MCP_TRANSPORT: http
+    restart: unless-stopped
+    volumes:
+      - ./core:/app/core:ro
+      - ./vault:/app/vault:ro
+      - ./rituals:/app/rituals:ro
+    networks:
+      - mcp-servers
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://localhost:3001/health', (r) => {if (r.statusCode !== 200) throw new Error(r.statusCode)})"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+  # Filesystem MCP Server - File operations (read/write/create/delete)
+  mcp-filesystem:
+    image: node:20-alpine
+    container_name: mcp-filesystem
+    ports:
+      - "3002:3000"
+    working_dir: /workspace
+    volumes:
+      - ./:/workspace
+      - /app/node_modules
+    command: npx -y @modelcontextprotocol/server-filesystem .
+    restart: unless-stopped
+    networks:
+      - mcp-servers
+    environment:
+      NODE_OPTIONS: "--max_old_space_size=512"
+
+  # Git MCP Server - Repository operations (log, diff, branches, commits)
+  mcp-git:
+    image: node:20-alpine
+    container_name: mcp-git
+    ports:
+      - "3003:3000"
+    working_dir: /repo
+    volumes:
+      - ./:/repo
+      - /repo/node_modules
+    command: npx -y @modelcontextprotocol/server-git
+    restart: unless-stopped
+    networks:
+      - mcp-servers
+    environment:
+      GIT_REPO_PATH: /repo
+      NODE_OPTIONS: "--max_old_space_size=512"
+
+  # PostgreSQL for database
+  postgres:
+    image: postgres:16-alpine
+    container_name: postgres-imperial
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: imperial
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-changeme}
+      POSTGRES_DB: imperial_codex
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - mcp-servers
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U imperial"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # PostgreSQL MCP Server - Database queries and operations
+  mcp-postgres:
+    image: node:20-alpine
+    container_name: mcp-postgres
+    ports:
+      - "3004:3000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: "postgresql://imperial:${DB_PASSWORD:-changeme}@postgres:5432/imperial_codex"
+      NODE_OPTIONS: "--max_old_space_size=512"
+    command: npx -y @modelcontextprotocol/server-postgres
+    restart: unless-stopped
+    networks:
+      - mcp-servers
+
+  # SQLite MCP Server - Lightweight database operations
+  mcp-sqlite:
+    image: node:20-alpine
+    container_name: mcp-sqlite
+    ports:
+      - "3005:3000"
+    volumes:
+      - ./data:/app/data
+    environment:
+      DATABASE_PATH: /app/data/imperial-codex.db
+      NODE_OPTIONS: "--max_old_space_size=512"
+    command: npx -y @modelcontextprotocol/server-sqlite
+    restart: unless-stopped
+    networks:
+      - mcp-servers
+
+  # Web Search MCP Server - Internet search (Brave/Google)
+  mcp-web-search:
+    image: node:20-alpine
+    container_name: mcp-web-search
+    ports:
+      - "3006:3000"
+    env_file:
+      - .env.local
+    environment:
+      SEARCH_ENGINE: brave
+      NODE_OPTIONS: "--max_old_space_size=512"
+    command: npx -y @modelcontextprotocol/server-web-search
+    restart: unless-stopped
+    networks:
+      - mcp-servers
+
+  # Memory MCP Server - Persistent context memory
+  mcp-memory:
+    image: node:20-alpine
+    container_name: mcp-memory
+    ports:
+      - "3007:3000"
+    volumes:
+      - memory_data:/app/memory
+    environment:
+      MEMORY_DIR: /app/memory
+      NODE_OPTIONS: "--max_old_space_size=512"
+    command: npx -y @modelcontextprotocol/server-memory
+    restart: unless-stopped
+    networks:
+      - mcp-servers
+
+  # GitHub MCP Server - GitHub operations (issues, PRs, repos)
+  mcp-github:
+    image: node:20-alpine
+    container_name: mcp-github
+    ports:
+      - "3008:3000"
+    env_file:
+      - .env.local
+    environment:
+      NODE_OPTIONS: "--max_old_space_size=512"
+    command: npx -y @modelcontextprotocol/server-github
+    restart: unless-stopped
+    networks:
+      - mcp-servers
+
+  # Slack MCP Server - Slack messaging and operations
+  mcp-slack:
+    image: node:20-alpine
+    container_name: mcp-slack
+    ports:
+      - "3009:3000"
+    env_file:
+      - .env.local
+    environment:
+      SLACK_CHANNEL: "#imperial-codex-alerts"
+      NODE_OPTIONS: "--max_old_space_size=512"
+    command: npx -y @modelcontextprotocol/server-slack
+    restart: unless-stopped
+    networks:
+      - mcp-servers
+
+  # Docker MCP Server - Docker container and image operations
+  mcp-docker:
+    image: node:20-alpine
+    container_name: mcp-docker
+    ports:
+      - "3010:3000"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    environment:
+      DOCKER_SOCKET: "unix:///var/run/docker.sock"
+      NODE_OPTIONS: "--max_old_space_size=512"
+    command: npx -y @modelcontextprotocol/server-docker
+    restart: unless-stopped
+    networks:
+      - mcp-servers
+
+  # HTTP MCP Server - HTTP client for web requests
+  mcp-http:
+    image: node:20-alpine
+    container_name: mcp-http
+    ports:
+      - "3011:3000"
+    environment:
+      NODE_OPTIONS: "--max_old_space_size=512"
+    command: npx -y @modelcontextprotocol/server-http
+    restart: unless-stopped
+    networks:
+      - mcp-servers
+
+networks:
+  mcp-servers:
+    driver: bridge
+
+volumes:
+  postgres_data:
+    driver: local
+  memory_data:
+    driver: local

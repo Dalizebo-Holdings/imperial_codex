@@ -1,0 +1,179 @@
+{
+  "_comment": "Legacy JSON config — mirrors config.yaml for older Continue builds. Primary config is config.yaml.",
+  "models": [
+    {
+      "title": "Qwen 2.5 7B (Local)",
+      "provider": "openai",
+      "model": "qwen2.5:7b-instruct",
+      "apiBase": "http://localhost:8000/v1",
+      "apiKey": "ollama",
+      "contextLength": 8192,
+      "completionOptions": { "temperature": 0.7, "maxTokens": 2048 }
+    },
+    {
+      "title": "Phi-4 Mini (Local)",
+      "provider": "openai",
+      "model": "phi4-mini",
+      "apiBase": "http://localhost:8000/v1",
+      "apiKey": "ollama",
+      "contextLength": 4096,
+      "completionOptions": { "temperature": 0.7, "maxTokens": 1024 }
+    },
+    {
+      "title": "GPT-4o",
+      "provider": "openai",
+      "model": "gpt-4o",
+      "apiKey": "$OPENAI_API_KEY",
+      "contextLength": 128000,
+      "completionOptions": { "temperature": 0.3, "maxTokens": 4096 }
+    },
+    {
+      "title": "GPT-4o Mini",
+      "provider": "openai",
+      "model": "gpt-4o-mini",
+      "apiKey": "$OPENAI_API_KEY",
+      "contextLength": 128000,
+      "completionOptions": { "temperature": 0.3, "maxTokens": 2048 }
+    },
+    {
+      "title": "Claude 3.5 Sonnet",
+      "provider": "anthropic",
+      "model": "claude-3-5-sonnet-20241022",
+      "apiKey": "$ANTHROPIC_API_KEY",
+      "contextLength": 200000,
+      "completionOptions": { "temperature": 0.3, "maxTokens": 8192 }
+    },
+    {
+      "title": "Claude 3 Haiku",
+      "provider": "anthropic",
+      "model": "claude-3-haiku-20240307",
+      "apiKey": "$ANTHROPIC_API_KEY",
+      "contextLength": 200000,
+      "completionOptions": { "temperature": 0.3, "maxTokens": 2048 }
+    }
+  ],
+  "tabAutocompleteModel": {
+    "title": "Phi-4 Mini Autocomplete",
+    "provider": "openai",
+    "model": "phi4-mini",
+    "apiBase": "http://localhost:8000/v1",
+    "apiKey": "ollama"
+  },
+  "embeddingsProvider": {
+    "provider": "openai",
+    "model": "qwen2.5:7b-instruct",
+    "apiBase": "http://localhost:8001/v1",
+    "apiKey": "ollama"
+  },
+  "contextProviders": [
+    {
+      "name": "codebase",
+      "params": { "nRetrieve": 25, "nFinal": 5, "useReranking": true }
+    },
+    { "name": "code" },
+    { "name": "file" },
+    { "name": "folder" },
+    { "name": "docs" },
+    { "name": "diff" },
+    { "name": "terminal" },
+    { "name": "problems" },
+    { "name": "os" },
+    { "name": "repo-map", "params": { "includeSignatures": true } },
+    { "name": "open", "params": { "onlyPinned": false } },
+    { "name": "web", "params": { "n": 5 } },
+    { "name": "github", "params": { "repos": ["$GITHUB_REPO"] } }
+  ],
+  "slashCommands": [
+    { "name": "edit", "description": "Edit selected code in place" },
+    {
+      "name": "comment",
+      "description": "Write JSDoc/TSDoc comments for selected code"
+    },
+    {
+      "name": "share",
+      "description": "Export the current chat session to markdown"
+    },
+    {
+      "name": "cmd",
+      "description": "Generate a shell command from plain-English description"
+    },
+    {
+      "name": "commit",
+      "description": "Generate a Conventional Commit message from the current diff"
+    },
+    {
+      "name": "test",
+      "description": "Write Jest unit tests for the selected code"
+    },
+    {
+      "name": "review",
+      "description": "Code-review the selection and suggest improvements"
+    },
+    {
+      "name": "explain",
+      "description": "Step-by-step explanation of the selected code"
+    },
+    {
+      "name": "optimize",
+      "description": "Identify and fix performance issues in the selection"
+    },
+    {
+      "name": "fix",
+      "description": "Diagnose and patch errors or bugs in the selection"
+    }
+  ],
+  "mcpServers": {
+    "imperial-codex": {
+      "command": "node",
+      "args": [
+        "--loader",
+        "ts-node/esm",
+        "--experimental-specifier-resolution=node",
+        "src/mcp/server.ts"
+      ],
+      "env": {
+        "SUPABASE_URL": "$SUPABASE_URL",
+        "SUPABASE_ANON_KEY": "$SUPABASE_ANON_KEY",
+        "SUPABASE_SERVICE_ROLE_KEY": "$SUPABASE_SERVICE_ROLE_KEY",
+        "VAULT_ENCRYPTION_KEY": "$VAULT_ENCRYPTION_KEY",
+        "OPENAI_API_KEY": "$OPENAI_API_KEY",
+        "ANTHROPIC_API_KEY": "$ANTHROPIC_API_KEY"
+      }
+    },
+    "filesystem": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-filesystem",
+        "c:/Users/lucas/OneDrive/Dalizebo Holdings/imperial_codex"
+      ]
+    },
+    "git": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-git",
+        "--repository",
+        "c:/Users/lucas/OneDrive/Dalizebo Holdings/imperial_codex"
+      ]
+    },
+    "sequential-thinking": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-sequentialthinking"]
+    },
+    "time": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-time"]
+    },
+    "brave-search": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-brave-search"],
+      "env": { "BRAVE_API_KEY": "$BRAVE_API_KEY" }
+    },
+    "github": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-github"],
+      "env": { "GITHUB_PERSONAL_ACCESS_TOKEN": "$GITHUB_TOKEN" }
+    }
+  }
+}

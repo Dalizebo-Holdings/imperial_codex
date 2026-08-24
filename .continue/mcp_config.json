@@ -1,0 +1,53 @@
+{
+  "_comment": "MCP Server Configuration for Continue.dev - references your existing mcp-config.json",
+  "mcpServers": {
+    "imperial-codex-stdio": {
+      "command": "node",
+      "args": [
+        "--loader",
+        "ts-node/esm",
+        "--experimental-specifier-resolution=node",
+        "src/mcp/server.ts"
+      ],
+      "env": {
+        "SUPABASE_URL": "${SUPABASE_URL}",
+        "SUPABASE_ANON_KEY": "${SUPABASE_ANON_KEY}",
+        "SUPABASE_SERVICE_ROLE_KEY": "${SUPABASE_SERVICE_ROLE_KEY}",
+        "VAULT_ENCRYPTION_KEY": "${VAULT_ENCRYPTION_KEY}",
+        "OPENAI_API_KEY": "${OPENAI_API_KEY}",
+        "ANTHROPIC_API_KEY": "${ANTHROPIC_API_KEY}"
+      },
+      "description": "Imperial Codex MCP server - 13 tools for Pillars, OS Modules, Library, Strike Output"
+    },
+    "filesystem": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-filesystem",
+        "${HOME}/projects",
+        "/tmp"
+      ],
+      "description": "Secure file operations with configurable access controls"
+    },
+    "git": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-git",
+        "--repository",
+        "${HOME}/projects/imperial_codex"
+      ],
+      "description": "Tools to read, search, and manipulate Git repositories"
+    },
+    "sequentialthinking": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-sequentialthinking"],
+      "description": "Dynamic and reflective problem-solving through thought sequences"
+    },
+    "time": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-time"],
+      "description": "Time and timezone conversion capabilities"
+    }
+  }
+}

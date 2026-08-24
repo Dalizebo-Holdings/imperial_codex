@@ -1,0 +1,81 @@
+version: '3.8'
+
+services:
+  # Main application
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: development
+    container_name: imperial_codex-app
+    ports:
+      - "3000:3000"
+      - "9229:9229"  # Node debugger
+    env_file:
+      - .env.local
+    environment:
+      NODE_ENV: development
+      PORT: 3000
+      HOSTNAME: "0.0.0.0"
+      NODE_OPTIONS: "--inspect=0.0.0.0:9229"
+      MCP_SERVER_URL: "http://mcp-server:3001"
+    restart: unless-stopped
+    volumes:
+      - ./src:/app/src
+      - ./core:/app/core:ro
+      - ./vault:/app/vault:rw
+      - ./rituals:/app/rituals:rw
+      - /app/node_modules
+    develop:
+      watch:
+        - path: ./src
+          action: sync
+          ignore:
+            - node_modules
+        - path: ./core
+          action: sync
+        - path: ./package.json
+          action: rebuild
+    depends_on:
+      mcp-server:
+        condition: service_healthy
+    networks:
+      - imperial-codex
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://localhost:3000', (r) => {if (r.statusCode !== 200) throw new Error(r.statusCode)})"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 10s
+
+  # MCP Server
+  mcp-server:
+    build:
+      context: .
+      dockerfile: docker/mcp.dockerfile
+    container_name: imperial_codex-mcp
+    ports:
+      - "3001:3001"
+    env_file:
+      - .env.local
+    environment:
+      NODE_ENV: development
+      PORT: 3001
+      MCP_TRANSPORT: http
+    restart: unless-stopped
+    volumes:
+      - ./core:/app/core:ro
+      - ./vault:/app/vault:ro
+      - ./rituals:/app/rituals:ro
+    networks:
+      - imperial-codex
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://localhost:3001/health', (r) => {if (r.statusCode !== 200) throw new Error(r.statusCode)})"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 10s
+
+networks:
+  imperial-codex:
+    driver: bridge

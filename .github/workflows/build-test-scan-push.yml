@@ -1,0 +1,209 @@
+name: Build → Test → Scan → Push
+
+on:
+  push:
+    branches:
+      - main
+      - develop
+    tags:
+      - 'v*'
+  pull_request:
+    branches:
+      - main
+      - develop
+
+env:
+  DOCKER_HUB_IMAGE: ${{ secrets.DOCKER_HUB_USERNAME }}/imperial-codex
+  GHCR_IMAGE: ghcr.io/${{ github.repository }}
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+      security-events: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      # ---- BUILD: Production image ----
+      - name: Build Docker image (runner stage)
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          target: runner
+          push: false
+          load: true
+          tags: imperial-codex:test
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      # ---- TEST: Smoke test on built image ----
+      - name: Smoke test — Container startup
+        run: |
+          docker run -d \
+            --name test-app \
+            -p 3000:3000 \
+            -e NODE_ENV=production \
+            -e PORT=3000 \
+            imperial-codex:test
+          
+          echo "Waiting for container to be healthy..."
+          for i in {1..30}; do
+            if docker exec test-app curl -f http://localhost:3000/api/health 2>/dev/null; then
+              echo "✅ Health check passed"
+              docker stop test-app
+              exit 0
+            fi
+            echo "Attempt $i/30..."
+            sleep 2
+          done
+          
+          docker logs test-app
+          docker stop test-app
+          exit 1
+
+      # ---- SCAN: Security scanning with Trivy ----
+      - name: Run Trivy vulnerability scan
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: imperial-codex:test
+          format: sarif
+          output: trivy-results.sarif
+          severity: HIGH,CRITICAL
+
+      - name: Upload Trivy results to GitHub Security
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: trivy-results.sarif
+          category: trivy
+
+      # ---- LOGIN: Registry authentication ----
+      - name: Log in to Docker Hub
+        if: github.event_name != 'pull_request'
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_HUB_USERNAME }}
+          password: ${{ secrets.DOCKER_HUB_TOKEN }}
+
+      - name: Log in to GitHub Container Registry
+        if: github.event_name != 'pull_request'
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # ---- METADATA: Generate tags and labels ----
+      - name: Extract metadata for Docker Hub
+        if: github.event_name != 'pull_request'
+        id: meta-dockerhub
+        uses: docker/metadata-action@v5
+        with:
+          images: docker.io/${{ env.DOCKER_HUB_IMAGE }}
+          tags: |
+            type=ref,event=branch
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=sha,prefix={{branch}}-
+            type=raw,value=latest,enable={{is_default_branch}}
+
+      - name: Extract metadata for GHCR
+        if: github.event_name != 'pull_request'
+        id: meta-ghcr
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.GHCR_IMAGE }}
+          tags: |
+            type=ref,event=branch
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=sha,prefix={{branch}}-
+            type=raw,value=latest,enable={{is_default_branch}}
+
+      # ---- PUSH: Docker Hub ----
+      - name: Build and push to Docker Hub
+        if: github.event_name != 'pull_request'
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          target: runner
+          push: true
+          tags: ${{ steps.meta-dockerhub.outputs.tags }}
+          labels: ${{ steps.meta-dockerhub.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      # ---- PUSH: GitHub Container Registry ----
+      - name: Build and push to GHCR
+        if: github.event_name != 'pull_request'
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          target: runner
+          push: true
+          tags: ${{ steps.meta-ghcr.outputs.tags }}
+          labels: ${{ steps.meta-ghcr.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      # ---- PUSH: Development image to GHCR (main/develop only) ----
+      - name: Build and push dev image to GHCR
+        if: github.event_name != 'pull_request' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop')
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          target: development
+          push: true
+          tags: ${{ env.GHCR_IMAGE }}:dev
+          labels: ${{ steps.meta-ghcr.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      # ---- NOTIFY: Slack notifications ----
+      - name: Notify Slack — Build success
+        if: success() && github.event_name != 'pull_request'
+        uses: slackapi/slack-github-action@v1.24.0
+        with:
+          payload: |
+            {
+              "text": "✅ Build successful",
+              "blocks": [
+                {
+                  "type": "section",
+                  "text": {
+                    "type": "mrkdwn",
+                    "text": "*Build Success*\nBranch: `${{ github.ref_name }}`\nDocker Hub: `${{ env.DOCKER_HUB_IMAGE }}`\nGHCR: `${{ env.GHCR_IMAGE }}`\nCommit: <${{ github.server_url }}/${{ github.repository }}/commit/${{ github.sha }}|${{ github.sha }}>"
+                  }
+                }
+              ]
+            }
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+          SLACK_WEBHOOK_TYPE: INCOMING_WEBHOOK
+
+      - name: Notify Slack — Build failure
+        if: failure() && github.event_name != 'pull_request'
+        uses: slackapi/slack-github-action@v1.24.0
+        with:
+          payload: |
+            {
+              "text": "❌ Build failed",
+              "blocks": [
+                {
+                  "type": "section",
+                  "text": {
+                    "type": "mrkdwn",
+                    "text": "*Build Failed*\nBranch: `${{ github.ref_name }}`\nCommit: <${{ github.server_url }}/${{ github.repository }}/commit/${{ github.sha }}|${{ github.sha }}>\nRun: <${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|View logs>"
+                  }
+                }
+              ]
+            }
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+          SLACK_WEBHOOK_TYPE: INCOMING_WEBHOOK

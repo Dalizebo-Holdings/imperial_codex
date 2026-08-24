@@ -1,0 +1,37 @@
+# Quick Fix Commands
+
+Copy and paste into PowerShell:
+
+```powershell
+cd "C:\Users\lucas\OneDrive\Dalizebo Holdings\imperial_codex"
+
+# Stop everything
+docker compose -f docker-compose.dev.yml down -v
+
+# Clean up
+docker system prune -f
+
+# Fresh start
+docker compose -f docker-compose.dev.yml up --pull always -d
+
+# Verify
+docker ps
+```
+
+**Then in VS Code:**
+1. Click green remote icon (bottom left)
+2. Select "Close Remote Connection"
+3. Ctrl+Shift+P → "Remote-Containers: Attach to Running Container"
+4. Select `imperial_codex-app`
+
+If it loops again, run:
+```powershell
+docker compose -f docker-compose.dev.yml down
+```
+
+And try the direct approach:
+```powershell
+docker run -it --name imperial_codex-dev -v "$(pwd):/app" -p 3000:3000 node:20-alpine /bin/sh
+```
+
+Let me know when you've run these commands or if you hit errors.

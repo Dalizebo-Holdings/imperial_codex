@@ -1,0 +1,58 @@
+version: '3.8'
+
+services:
+  app:
+    image: imperial-codex:latest
+    container_name: imperial_codex-app
+    ports:
+      - "3000:3000"
+    env_file:
+      - .env.local
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      HOSTNAME: "0.0.0.0"
+    restart: on-failure
+    restart_policy:
+      condition: on-failure
+      delay: 5s
+      max_attempts: 5
+      window: 120s
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/api/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    volumes:
+      - ./core:/app/core:ro
+      - ./vault:/app/vault:ro
+      - ./rituals:/app/rituals:ro
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    cap_add:
+      - NET_BIND_SERVICE
+    read_only: true
+    tmpfs:
+      - /tmp
+      - /app/.next/cache
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 1G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+        labels: "service=imperial-codex,env=production"
+    labels:
+      - "com.imperialcodex.description=Imperial Codex Strategic OS"
+      - "com.imperialcodex.version=16.2"
+      - "com.imperialcodex.monitoring=true"

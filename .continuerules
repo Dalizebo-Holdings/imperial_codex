@@ -1,0 +1,49 @@
+# imperial_codex — Continue.dev Project Rules
+# These rules are injected into every chat and agent session automatically.
+
+## Stack
+- Next.js 16.2 / App Router, React 19, TypeScript 5, Node.js 20 LTS
+- Package manager: npm only (never yarn or pnpm)
+- Styling: Tailwind CSS
+- Database: Supabase (PostgreSQL via @supabase/supabase-js)
+  - All write operations use exponential back-off: base 500 ms, cap 5000 ms, max 2 retries
+- Caching: Redis
+- Vector search: Qdrant (primary), Pinecone (secondary)
+- AI (primary): OpenAI GPT-4o via Vercel AI SDK — streamText / generateText
+- AI (secondary): Anthropic Claude 3.5 Sonnet — always include a fallback strategy
+- Embeddings: OpenAI text-embedding-3-large (1536 dims)
+- Auth: iron-session (cookie-based), clearance levels 0–2
+- Encryption: AES-256-GCM for vault data
+
+## Naming Conventions
+- Directories and non-component files: kebab-case
+- React components: PascalCase (e.g., ChatWidget.tsx)
+- JSON data files: SNAKE_UPPER_CASE (e.g., CAPITAL_ALLOCATIONS.json)
+- All source code lives under src/
+
+## Code Quality
+- Use exact / pinned versions in package.json — no open ranges
+- Never interpolate user input into SQL — always use parameterized queries
+- Validate and sanitise all external inputs
+- Prefer async/await over raw Promise chains
+- Export types from the module where they are defined
+
+## Testing
+- Write Jest tests for every new function or module
+- Use fast-check for property-based tests on pure functions
+- Run tests with: npm test (not watch mode)
+- Type-check with: npm run typecheck before marking a task done
+- Lint with: npm run lint before committing
+
+## Git
+- Commit messages follow Conventional Commits:
+    <type>(<scope>): <short summary>
+    Types: feat | fix | docs | style | refactor | test | chore
+- Never push directly to main — always use a feature branch
+- Never commit: .env, .p12, .pem, .key, auth.json, or any secrets
+
+## Security
+- Secrets must only be read from environment variables, never hard-coded
+- Use AWS Secrets Manager or Vercel encrypted env vars for production secrets
+- Sanitise all user-provided content before rendering (XSS prevention)
+- All API routes must validate the session and clearance level before operating

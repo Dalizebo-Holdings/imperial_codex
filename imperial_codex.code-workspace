@@ -1,25 +1,116 @@
 {
-  "folders": [
-    {
-      "path": "."
-    }
-  ],
-  "settings": {
-    "amazonQ.profile": "amazon-q",
-    "amazonQ.region": "us-east-1",
-    "terminal.integrated.env.windows": {
-      "AWS_PROFILE": "amazon-q",
-      "AWS_REGION": "us-east-1"
-    },
-    "editor.codeActionsOnSave": {
-      "source.fixAll": "explicit"
-    }
-  },
-  "extensions": {
-    "recommendations": [
-      "amazonwebservices.amazon-q-vscode",
-      "esbenp.prettier-vscode",
-      "ms-vscode.vscode-typescript-next"
-    ]
-  }
+	"folders": [
+		{
+			"path": ".",
+			"name": "imperial_codex (Docker)"
+		},
+		{
+			"path": "../../Project DZ",
+			"name": "Project DZ"
+		}
+	],
+	"settings": {
+		"docker.host": "unix:///var/run/docker.sock",
+		"docker.showStartPage": false,
+		"remote.containers.defaultExtensions": [
+			"ms-vscode-remote.remote-containers",
+			"ms-vscode.docker",
+			"eamodio.gitlens",
+			"GitHub.Copilot",
+			"GitHub.Copilot-Chat",
+			"esbenp.prettier-vscode",
+			"dbaeumer.vscode-eslint"
+		],
+		"remote.containers.copyMgmtThreadCount": 4,
+		"remote.containers.allowRemoteExtensions": true,
+		"remote.containers.showStartPage": false,
+		"remote.SSH.showLoginTerminal": false,
+		"remote.SSH.useExecServer": true,
+		"[javascript]": {
+			"editor.defaultFormatter": "esbenp.prettier-vscode",
+			"editor.formatOnSave": true
+		},
+		"[typescript]": {
+			"editor.defaultFormatter": "esbenp.prettier-vscode",
+			"editor.formatOnSave": true
+		},
+		"[typescriptreact]": {
+			"editor.defaultFormatter": "esbenp.prettier-vscode",
+			"editor.formatOnSave": true
+		},
+		"[json]": {
+			"editor.defaultFormatter": "esbenp.prettier-vscode"
+		},
+		"git.ignoreLimitWarning": true,
+		"git.ignoreMissingGitWarning": true,
+		"git.autorefresh": true,
+		"git.autofetch": true,
+		"git.autofetchPeriod": 180,
+		"github.gitAuthentication": true,
+		"github.gitProtocol": "ssh",
+		"files.watcherExclude": {
+			"**/.git/objects/**": true,
+			"**/.git/subtree-cache/**": true,
+			"**/node_modules/**": true,
+			"**/.next/**": true,
+			"**/dist/**": true,
+			"**/.turbo/**": true
+		},
+		"editor.formatOnSave": true,
+		"editor.defaultFormatter": "esbenp.prettier-vscode",
+		"editor.codeActionsOnSave": {
+			"source.fixAll.eslint": "explicit",
+			"source.fixAll": "explicit"
+		},
+		"typescript.tsdk": "node_modules/typescript/lib",
+		"typescript.enablePromptUseWorkspaceTsdk": true,
+		"terminal.integrated.profiles.linux": {
+			"bash": {
+				"path": "/bin/bash",
+				"icon": "terminal-bash"
+			}
+		},
+		"terminal.integrated.defaultProfile.linux": "bash",
+		"powershell.cwd": "imperial_codex (Docker)"
+	},
+	"extensions": {
+		"recommendations": [
+			"ms-vscode.docker",
+			"ms-vscode-remote.remote-containers",
+			"ms-vscode-remote.remote-ssh",
+			"eamodio.gitlens",
+			"esbenp.prettier-vscode",
+			"ms-vscode.vscode-typescript-next",
+			"dbaeumer.vscode-eslint",
+			"GitHub.Copilot",
+			"GitHub.Copilot-Chat",
+			"anthropic-labs.claude-dev",
+			"bradlc.vscode-tailwindcss",
+			"formulahendry.auto-rename-tag",
+			"ms-vscode.makefile-tools",
+			"ms-vscode.vscode-json-language-server",
+			"Gruntfuggly.todo-tree",
+			"ms-vscode.extension-pack-for-java"
+		]
+	},
+	"launch": {
+		"version": "0.2.0",
+		"configurations": [
+			{
+				"name": "Next.js: debug server-side",
+				"type": "node",
+				"request": "attach",
+				"port": 9229,
+				"protocol": "inspector",
+				"skipFiles": ["<node_internals>/**"]
+			},
+			{
+				"name": "Next.js: debug client-side",
+				"type": "chrome",
+				"request": "attach",
+				"port": 9222,
+				"url": "http://localhost:3000"
+			}
+		]
+	}
 }

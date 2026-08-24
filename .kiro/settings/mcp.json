@@ -1,28 +1,65 @@
 {
-    "mcpServers": {
-        "imperial-codex": {
-            "command": "node",
-            "args": [
-                "--loader",
-                "ts-node/esm",
-                "--experimental-specifier-resolution=node",
-                "src/mcp/server.ts"
-            ],
-            "env": {},
-            "disabled": false,
-            "autoApprove": [
-                "get_pillar",
-                "search_pillars",
-                "get_os_module",
-                "list_os_modules",
-                "search_library",
-                "get_library_entry",
-                "get_integration_map",
-                "get_loop_status",
-                "get_capital_allocation",
-                "get_instrument",
-                "list_instruments"
-            ]
-        }
+  "mcpServers": {
+    "imperial-codex": {
+      "command": "node",
+      "args": [
+        "--loader",
+        "ts-node/esm",
+        "--experimental-specifier-resolution=node",
+        "src/mcp/server.ts"
+      ],
+      "env": {},
+      "disabled": false,
+      "autoApprove": [
+        "get_pillar",
+        "search_pillars",
+        "get_os_module",
+        "list_os_modules",
+        "search_library",
+        "get_library_entry",
+        "get_integration_map",
+        "get_loop_status",
+        "get_capital_allocation",
+        "get_instrument",
+        "list_instruments"
+      ]
+    },
+
+    "ollama-qwen": {
+      "command": "npx",
+      "args": ["-y", "ollama-mcp-server"],
+      "env": {
+        "OLLAMA_HOST": "http://localhost:8001",
+        "OLLAMA_MODEL": "qwen2.5:7b-instruct"
+      },
+      "disabled": false,
+      "autoApprove": [
+        "ollama_generate",
+        "ollama_chat",
+        "ollama_list_models",
+        "ollama_show_model"
+      ]
+    },
+
+    "ollama-phi": {
+      "command": "npx",
+      "args": ["-y", "ollama-mcp-server"],
+      "env": {
+        "OLLAMA_HOST": "http://localhost:8002",
+        "OLLAMA_MODEL": "phi4-mini"
+      },
+      "disabled": false,
+      "autoApprove": ["ollama_generate", "ollama_chat", "ollama_list_models"]
+    },
+
+    "model-router": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-fetch"],
+      "env": {
+        "BASE_URL": "http://localhost:8000"
+      },
+      "disabled": false,
+      "autoApprove": []
     }
+  }
 }

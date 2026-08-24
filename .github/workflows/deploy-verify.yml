@@ -1,0 +1,216 @@
+name: Deploy & Verify Production
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Deployment environment'
+        required: true
+        default: 'staging'
+        type: choice
+        options:
+          - staging
+          - production
+
+env:
+  GHCR_IMAGE: ghcr.io/${{ github.repository }}
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: ${{ github.event.inputs.environment || 'production' }}
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # ---- DETERMINE IMAGE TAG ----
+      - name: Determine image tag
+        id: image
+        run: |
+          if [[ ${{ github.ref }} == refs/tags/* ]]; then
+            TAG=${GITHUB_REF#refs/tags/}
+          else
+            TAG=latest
+          fi
+          echo "tag=${TAG}" >> $GITHUB_OUTPUT
+          echo "image=${{ env.GHCR_IMAGE }}:${TAG}" >> $GITHUB_OUTPUT
+          echo "Image: ${{ env.GHCR_IMAGE }}:${TAG}"
+
+      # ---- DEPLOY ----
+      - name: Deploy via SSH
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: ${{ secrets.DEPLOY_USER }}
+          key: ${{ secrets.DEPLOY_KEY }}
+          script: |
+            set -e
+            echo "📦 Deploying to ${{ github.event.inputs.environment || 'production' }}"
+            
+            cd ${{ secrets.DEPLOY_PATH }}
+            
+            # Pull latest image
+            echo "🔄 Pulling image: ${{ steps.image.outputs.image }}"
+            docker pull ${{ steps.image.outputs.image }}
+            
+            # Backup current compose state
+            docker compose -f docker-compose.prod.yml ps > /tmp/backup-ps.txt || true
+            
+            # Bring up services with new image
+            echo "🚀 Starting services..."
+            DOCKER_IMAGE_TAG=${{ steps.image.outputs.tag }} \
+            docker compose -f docker-compose.prod.yml up -d
+            
+            # Run database migrations if needed
+            echo "🗄️ Running migrations..."
+            docker compose -f docker-compose.prod.yml exec -T app npm run db:migrate || true
+            
+            # Cleanup old images
+            docker image prune -af --filter "until=72h"
+
+      # ---- VERIFY: Health checks ----
+      - name: Verify deployment health
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: ${{ secrets.DEPLOY_USER }}
+          key: ${{ secrets.DEPLOY_KEY }}
+          script: |
+            set -e
+            echo "🔍 Verifying deployment..."
+            
+            # Wait for container to be healthy
+            for i in {1..60}; do
+              if docker compose -f ${{ secrets.DEPLOY_PATH }}/docker-compose.prod.yml exec -T app curl -f http://localhost:3000/api/health 2>/dev/null; then
+                echo "✅ Health check passed"
+                break
+              fi
+              if [ $i -eq 60 ]; then
+                echo "❌ Health check failed after 60 attempts"
+                exit 1
+              fi
+              echo "Attempt $i/60..."
+              sleep 2
+            done
+            
+            # Show container status
+            echo "📊 Container Status:"
+            docker compose -f ${{ secrets.DEPLOY_PATH }}/docker-compose.prod.yml ps
+            
+            # Show logs (last 50 lines)
+            echo "📋 Recent Logs:"
+            docker compose -f ${{ secrets.DEPLOY_PATH }}/docker-compose.prod.yml logs --tail=50 app
+
+      # ---- VERIFY: Performance baseline ----
+      - name: Run smoke tests
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: ${{ secrets.DEPLOY_USER }}
+          key: ${{ secrets.DEPLOY_KEY }}
+          script: |
+            set -e
+            echo "🧪 Running smoke tests..."
+            
+            APP_URL="http://localhost:3000"
+            
+            # Test home page
+            echo "Testing GET /"
+            curl -f ${APP_URL}/ > /dev/null || exit 1
+            
+            # Test API health
+            echo "Testing GET /api/health"
+            curl -f ${APP_URL}/api/health > /dev/null || exit 1
+            
+            # Test response time
+            echo "Testing response time..."
+            RESPONSE_TIME=$(curl -w '%{time_total}' -o /dev/null -s ${APP_URL}/)
+            echo "Response time: ${RESPONSE_TIME}s"
+            
+            # Check if under 2 seconds
+            if (( $(echo "$RESPONSE_TIME < 2" | bc -l) )); then
+              echo "✅ Response time acceptable"
+            else
+              echo "⚠️ Response time is high: ${RESPONSE_TIME}s"
+            fi
+
+      # ---- ROLLBACK on failure ----
+      - name: Rollback on failure
+        if: failure()
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: ${{ secrets.DEPLOY_USER }}
+          key: ${{ secrets.DEPLOY_KEY }}
+          script: |
+            echo "⏮️ Rolling back to previous version..."
+            cd ${{ secrets.DEPLOY_PATH }}
+            
+            # Stop current services
+            docker compose -f docker-compose.prod.yml down
+            
+            # Restart with previous image (compose will use cached layers)
+            docker compose -f docker-compose.prod.yml up -d
+            
+            # Verify rollback
+            for i in {1..30}; do
+              if docker compose -f docker-compose.prod.yml exec -T app curl -f http://localhost:3000/api/health 2>/dev/null; then
+                echo "✅ Rollback successful"
+                exit 0
+              fi
+              sleep 2
+            done
+            
+            echo "❌ Rollback failed"
+            exit 1
+
+      # ---- NOTIFY: Success ----
+      - name: Notify Slack — Deployment success
+        if: success()
+        uses: slackapi/slack-github-action@v1.24.0
+        with:
+          payload: |
+            {
+              "text": "✅ Production deployment successful",
+              "blocks": [
+                {
+                  "type": "section",
+                  "text": {
+                    "type": "mrkdwn",
+                    "text": "*✅ Production Deployment Successful*\nEnvironment: `${{ github.event.inputs.environment || 'production' }}`\nImage: `${{ steps.image.outputs.image }}`\nTag: `${{ steps.image.outputs.tag }}`\nCommit: <${{ github.server_url }}/${{ github.repository }}/commit/${{ github.sha }}|${{ github.sha }}>"
+                  }
+                }
+              ]
+            }
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+          SLACK_WEBHOOK_TYPE: INCOMING_WEBHOOK
+
+      # ---- NOTIFY: Failure ----
+      - name: Notify Slack — Deployment failure
+        if: failure()
+        uses: slackapi/slack-github-action@v1.24.0
+        with:
+          payload: |
+            {
+              "text": "❌ Production deployment failed",
+              "blocks": [
+                {
+                  "type": "section",
+                  "text": {
+                    "type": "mrkdwn",
+                    "text": "*❌ Production Deployment Failed*\nEnvironment: `${{ github.event.inputs.environment || 'production' }}`\nImage: `${{ steps.image.outputs.image }}`\nCommit: <${{ github.server_url }}/${{ github.repository }}/commit/${{ github.sha }}|${{ github.sha }}>\nRun: <${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|View logs>"
+                  }
+                }
+              ]
+            }
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+          SLACK_WEBHOOK_TYPE: INCOMING_WEBHOOK

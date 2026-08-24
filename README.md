@@ -5,6 +5,7 @@ A strategic operating system and Digital Citadel for Dalizebo Holdings — a Nex
 ## Overview
 
 The Imperial Codex is built on a multidimensional framework of:
+
 - **207 Strategic Pillars** — The foundational rules of the organisation
 - **36 Integrated Operating Systems** — The primary decision framework
 - **277 Integrations** — Connections between OS modules
@@ -15,11 +16,12 @@ Every output the system produces must adhere to the **5-Part Strike Hierarchy**.
 
 ## Documentation
 
-| Document | Description |
-|----------|-------------|
-| [Deployment Guide](docs/deployment.md) | Deploy Imperial Codex v16 to Vercel with Supabase |
+| Document                                                 | Description                                                                                   |
+| -------------------------------------------------------- | --------------------------------------------------------------------------------------------- |
+| [Deployment Guide](docs/deployment.md)                   | Deploy Imperial Codex v16 to Vercel with Supabase                                             |
 | [Service Integration Guide](docs/service-integration.md) | Comprehensive service integration architecture (AWS, Docker, GitHub, Qdrant, Pinecone, Redis) |
-| [Monitoring Guide](docs/monitoring.md) | Monitoring and observability setup |
+| [Monitoring Guide](docs/monitoring.md)                   | Monitoring and observability setup                                                            |
+| [AI Dev Tooling Setup](.continue/SETUP-INSTRUCTIONS.md)  | Continue.dev setup — local models, cloud LLMs, MCP servers, and context providers             |
 
 ## Quick Start
 
@@ -46,12 +48,17 @@ npm run dev
 ### Docker
 
 ```bash
-# Start development environment
-docker-compose up
+# Start development environment (hot reload, Postgres + Redis included)
+docker compose up
 
-# Build production image
-docker build -t imperial-codex .
+# Build production image (multi-stage, non-root runner)
+docker build --target runner -t imperial-codex .
+
+# Stop and remove containers
+docker compose down
 ```
+
+See [Service Integration Guide](docs/service-integration.md#docker-containerization) for the full Dockerfile, docker-compose.yml, and `.dockerignore` reference.
 
 ## Architecture
 
@@ -65,16 +72,16 @@ Browser → Next.js App Router → Service Layer → Data Layer
 
 ## Services
 
-| Service | Purpose |
-|---------|---------|
-| AWS | Cloud infrastructure (compute, storage, networking) |
-| Docker | Containerization for local development |
-| Supabase | Primary persistence layer (PostgreSQL) |
-| Vercel | Deployment and hosting platform |
-| GitHub | Version control and CI/CD |
-| Qdrant | High-performance vector search |
-| Pinecone | Scalable vector search |
-| Redis | Caching and session management |
+| Service  | Purpose                                             |
+| -------- | --------------------------------------------------- |
+| AWS      | Cloud infrastructure (compute, storage, networking) |
+| Docker   | Containerization for local development              |
+| Supabase | Primary persistence layer (PostgreSQL)              |
+| Vercel   | Deployment and hosting platform                     |
+| GitHub   | Version control and CI/CD                           |
+| Qdrant   | High-performance vector search                      |
+| Pinecone | Scalable vector search                              |
+| Redis    | Caching and session management                      |
 
 ## Features
 

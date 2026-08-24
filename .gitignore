@@ -42,3 +42,9 @@ infrastructure/.terraform.lock.hcl
 
 # --- Coolify ---
 /coolify-data/
+
+# secrets — never commit
+hugging Face Token.txt
+*.ppk
+.env*
+OpenHands/.env*

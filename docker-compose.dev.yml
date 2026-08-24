@@ -1,0 +1,46 @@
+version: '3.8'
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: imperial_codex-dev
+    ports:
+      - "3000:3000"
+      - "3001:3001"
+      - "9229:9229"
+    volumes:
+      - .:/app
+      - /app/node_modules
+      - /app/.next
+      - ${HOME}/.ssh:/root/.ssh:ro
+      - ${HOME}/.git-credentials:/root/.git-credentials:ro
+      - ${HOME}/.gitconfig:/root/.gitconfig:ro
+      - ${HOME}/.github:/root/.github:ro
+    environment:
+      NODE_ENV: development
+      PORT: 3000
+      HOSTNAME: "0.0.0.0"
+      MCP_SERVER_URL: "http://localhost:3001"
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      GITHUB_TOKEN: ${GITHUB_TOKEN}
+    env_file:
+      - .env.local
+    command: sh -c 'npm run dev'
+    stdin_open: true
+    tty: true
+    networks:
+      - imperial-net
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/api/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+    restart: on-failure:5
+
+networks:
+  imperial-net:
+    driver: bridge

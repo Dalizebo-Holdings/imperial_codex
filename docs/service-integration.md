@@ -8,16 +8,16 @@ This guide covers the comprehensive service integration architecture for Imperia
 
 Imperial Codex integrates multiple cloud services to provide a robust, scalable infrastructure foundation:
 
-| Service | Purpose |
-|---------|---------|
-| **AWS** | Cloud infrastructure (compute, storage, networking, security) |
-| **Docker** | Containerization for local development and deployment consistency |
-| **Supabase** | Primary persistence layer (PostgreSQL, authentication, storage) |
-| **Vercel** | Deployment and hosting platform for Next.js applications |
-| **GitHub** | Version control, CI/CD pipelines, and repository management |
-| **Qdrant** | High-performance vector database for similarity search |
-| **Pinecone** | Scalable vector database for machine learning applications |
-| **Redis** | In-memory data store for caching, sessions, and real-time data |
+| Service      | Purpose                                                           |
+| ------------ | ----------------------------------------------------------------- |
+| **AWS**      | Cloud infrastructure (compute, storage, networking, security)     |
+| **Docker**   | Containerization for local development and deployment consistency |
+| **Supabase** | Primary persistence layer (PostgreSQL, authentication, storage)   |
+| **Vercel**   | Deployment and hosting platform for Next.js applications          |
+| **GitHub**   | Version control, CI/CD pipelines, and repository management       |
+| **Qdrant**   | High-performance vector database for similarity search            |
+| **Pinecone** | Scalable vector database for machine learning applications        |
+| **Redis**    | In-memory data store for caching, sessions, and real-time data    |
 
 ---
 
@@ -81,13 +81,16 @@ Imperial Codex integrates multiple cloud services to provide a robust, scalable 
 ### Data Flow
 
 **Write Path:**
+
 1. Accept request → Validate authentication → Process business logic
 2. Write to Supabase → Invalidate Redis cache → Update Qdrant/Pinecone embeddings
 
 **Read Path:**
+
 1. Accept request → Check Redis cache → If cache miss, query Supabase → Store in Redis → Return data
 
 **Semantic Search:**
+
 1. Generate embedding for query text
 2. Query both Qdrant and Pinecone
 3. Merge results using weighted scoring algorithm
@@ -101,6 +104,7 @@ Imperial Codex integrates multiple cloud services to provide a robust, scalable 
 The AWS infrastructure is provisioned via Infrastructure-as-Code (Terraform) in the `/infrastructure/` directory.
 
 **Resources:**
+
 - **EC2 Instances** — Two t3.xlarge instances (production and staging)
 - **S3 Buckets** — Three buckets for production, staging, and backup data
 - **RDS PostgreSQL** — Production-grade PostgreSQL with multi-AZ deployment
@@ -109,6 +113,7 @@ The AWS infrastructure is provisioned via Infrastructure-as-Code (Terraform) in 
 - **CloudWatch Alarms** — CPU > 80%, error rate > 1%, database connections > 80%
 
 **Commands:**
+
 ```bash
 # Preview changes
 terraform plan
@@ -122,63 +127,157 @@ terraform destroy -target=module.infrastructure
 
 ### Docker Containerization
 
-**Dockerfile** — Multi-stage build for production images:
+**Dockerfile** — Multi-stage build with separate `dev`, `builder`, and production `runner` stages:
+
 ```dockerfile
+# Stage: dependencies (production only)
+FROM node:20-alpine AS deps
+WORKDIR /app
+COPY package.json package-lock.json ./
+RUN npm ci --omit=dev
+
+# Stage: dev (hot reload, debugger)
+FROM node:20-alpine AS dev
+WORKDIR /app
+COPY package.json package-lock.json ./
+RUN npm ci
+COPY . .
+EXPOSE 3000
+CMD ["npm", "run", "dev"]
+
+# Stage: builder
 FROM node:20-alpine AS builder
 WORKDIR /app
-COPY package*.json ./
+COPY package.json package-lock.json ./
 RUN npm ci
 COPY . .
 RUN npm run build
 
-FROM node:20-alpine AS production
+# Stage: production (minimal, non-root)
+FROM node:20-alpine AS runner
 WORKDIR /app
-COPY --from=builder /app/node_modules ./node_modules
-COPY --from=builder /app/.next ./.next
-COPY --from=builder /app/public ./public
-COPY --from=builder /app/package*.json ./
 ENV NODE_ENV=production
+RUN addgroup --system --gid 1001 nodejs && \
+    adduser --system --uid 1001 nextjs
+COPY --from=builder /app/public ./public
+COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
+COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
+USER nextjs
 EXPOSE 3000
-CMD ["npm", "start"]
+ENV PORT=3000
+ENV HOSTNAME="0.0.0.0"
+HEALTHCHECK --interval=30s --timeout=3s \
+  CMD wget -qO- http://localhost:3000/api/health || exit 1
+CMD ["node", "server.js"]
 ```
 
-**docker-compose.yml** — Development environment:
+Key practices enforced:
+
+- Copy `package.json` and `package-lock.json` before `COPY . .` to preserve layer cache across code changes
+- Non-root user (`nextjs:nodejs`) for the production stage
+- `HEALTHCHECK` so orchestrators can manage container lifecycle
+- Pin base image tags — never `:latest` in production
+
+**docker-compose.yml** — Local development environment:
+
 ```yaml
-version: '3.8'
 services:
   app:
-    build: .
+    build:
+      context: .
+      target: dev
     ports:
-      - '3000:3000'
-    environment:
-      - NODE_ENV=development
+      - "3000:3000"
     volumes:
-      - .:/app
-      - /app/node_modules
+      - .:/app # Bind mount for hot reload
+      - /app/node_modules # Preserve container node_modules
+      - /app/.next # Preserve Next.js build cache
+    environment:
+      - DATABASE_URL=postgres://postgres:postgres@db:5432/app_dev
+      - REDIS_URL=redis://redis:6379/0
+      - NODE_ENV=development
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_started
+
+  db:
+    image: postgres:16-alpine
+    ports:
+      - "127.0.0.1:5432:5432" # Localhost only
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: app_dev
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
   redis:
     image: redis:7-alpine
     ports:
-      - '6379:6379'
-  postgres:
-    image: postgres:15-alpine
-    ports:
-      - '5432:5432'
-    environment:
-      POSTGRES_USER: imperial
-      POSTGRES_PASSWORD: imperial
-      POSTGRES_DB: imperial
+      - "127.0.0.1:6379:6379"
+    volumes:
+      - redisdata:/data
+
+volumes:
+  pgdata:
+  redisdata:
+```
+
+**.dockerignore** — Exclude build artifacts and secrets:
+
+```
+node_modules
+.git
+.env
+.env.*
+.next
+dist
+coverage
+*.log
+.cache
+docker-compose*.yml
+Dockerfile*
+README.md
+tests/
+infrastructure/
+.kiro/
+core/
+vault/
 ```
 
 **Commands:**
-```bash
-# Start development environment
-docker-compose up
 
-# Stop development environment
-docker-compose down
+```bash
+# Start development environment (auto-loads docker-compose.override.yml)
+docker compose up
+
+# Stop and remove containers
+docker compose down
+
+# Stop and remove containers + volumes (destructive)
+docker compose down -v
 
 # Build production image
-docker build -t imperial-codex .
+docker build --target runner -t imperial-codex:latest .
+
+# Build dev image
+docker build --target dev -t imperial-codex:dev .
+
+# Rebuild without layer cache
+docker compose build --no-cache app
+
+# View logs
+docker compose logs -f app
+
+# Open a shell inside a running container
+docker compose exec app sh
 ```
 
 ### Supabase Integration
@@ -191,6 +290,7 @@ docker build -t imperial-codex .
 | `SUPABASE_SERVICE_ROLE_KEY` | Supabase service role key |
 
 **Database Schema:**
+
 - `audit_log` — Security events
 - `loop_execution_log` — Loop execution records
 - `instruments` — Generated DH-RES documents
@@ -202,6 +302,7 @@ docker build -t imperial-codex .
 - `agent_messages` — Chat messages
 
 **Migration:**
+
 ```bash
 # Apply migrations
 supabase db push
@@ -213,6 +314,7 @@ supabase migration new migration_name
 ### Vercel Deployment
 
 **vercel.json** — Deployment configuration:
+
 ```json
 {
   "buildCommand": "npm run build",
@@ -250,6 +352,7 @@ supabase migration new migration_name
 ### GitHub CI/CD Pipeline
 
 **Workflow** — `.github/workflows/ci-cd.yml`:
+
 ```yaml
 name: CI/CD
 
@@ -266,7 +369,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: "20"
       - run: npm ci
       - run: npm run lint
       - run: npm test
@@ -288,6 +391,7 @@ jobs:
 ### Qdrant Vector Database
 
 **Collection Configuration:**
+
 - **Name:** `library-embeddings`
 - **Vector dimension:** 1536 (OpenAI `text-embedding-3-large`)
 - **Distance metric:** Cosine
@@ -300,6 +404,7 @@ jobs:
 | `QDRANT_API_KEY` | Qdrant API key |
 
 **Commands:**
+
 ```bash
 # Create collection
 curl -X PUT $QDRANT_URL/collections/library-embeddings \
@@ -335,6 +440,7 @@ curl -X POST $QDRANT_URL/collections/library-embeddings/points \
 ### Pinecone Vector Database
 
 **Index Configuration:**
+
 - **Name:** `imperial-codex-index`
 - **Dimension:** 1536
 - **Metric:** Cosine
@@ -347,6 +453,7 @@ curl -X POST $QDRANT_URL/collections/library-embeddings/points \
 | `PINECONE_ENVIRONMENT` | Pinecone environment (e.g., `gcp-starter`) |
 
 **Commands:**
+
 ```bash
 # Create index
 pinecone indexes create imperial-codex-index \
@@ -378,6 +485,7 @@ pinecone upsert \
 | `REDIS_URL` | Redis connection string (e.g., `redis://localhost:6379`) |
 
 **Commands:**
+
 ```bash
 # Start Redis
 docker run -d -p 6379:6379 redis:7-alpine
@@ -395,15 +503,16 @@ redis-cli keys '*'
 
 ### Clearance Levels
 
-| Level | Description | Access |
-|-------|-------------|--------|
-| **0** | Public | Read-only, no sensitive data |
-| **1** | Standard | Read and write access to non-sensitive data |
-| **2** | Admin | Full access to all data and system configuration |
+| Level | Description | Access                                           |
+| ----- | ----------- | ------------------------------------------------ |
+| **0** | Public      | Read-only, no sensitive data                     |
+| **1** | Standard    | Read and write access to non-sensitive data      |
+| **2** | Admin       | Full access to all data and system configuration |
 
 ### OAuth2 with GitHub
 
 Developers authenticate with GitHub, and their organization membership is mapped to an Imperial Codex clearance level:
+
 - **Dalizebo Holdings members** → Level 2 (Admin)
 - **External contributors** → Level 1 (Standard)
 - **Public** → Level 0 (Read-only)
@@ -415,6 +524,7 @@ Developers authenticate with GitHub, and their organization membership is mapped
 ### Cost Monitoring
 
 The `/api/cost/summary` route returns estimated monthly costs for each service:
+
 - AWS EC2 instances
 - AWS S3 storage
 - AWS RDS PostgreSQL
@@ -427,12 +537,14 @@ The `/api/cost/summary` route returns estimated monthly costs for each service:
 ### Budget Alerts
 
 When any service's usage exceeds 80% of the allocated budget:
+
 - A warning is logged
 - A notification is sent to the `#imperial-codex-alerts` Slack channel
 
 ### Cost Optimization
 
 The `/api/cost/optimization` route provides recommendations:
+
 - Downgrade underutilized resources
 - Implement reserved instances for predictable workloads
 - Use spot instances for non-critical workloads
@@ -450,6 +562,7 @@ The `/api/cost/optimization` route provides recommendations:
 ### Audit Logging
 
 All security events are logged with:
+
 - Event type
 - User ID
 - Timestamp
@@ -469,6 +582,7 @@ All security events are logged with:
 ### Health Checks
 
 The `/api/health` route returns the health status of all integrated services:
+
 ```json
 {
   "status": "healthy",
@@ -484,6 +598,7 @@ The `/api/health` route returns the health status of all integrated services:
 ### Metrics
 
 The `/api/metrics` route returns application metrics:
+
 - Request rate
 - Error rate
 - Latency percentiles (p50, p95, p99)
@@ -491,6 +606,7 @@ The `/api/metrics` route returns application metrics:
 ### Alerting
 
 When a metric exceeds a threshold (e.g., error rate > 1%):
+
 - A notification is sent to the `#imperial-codex-alerts` Slack channel
 
 ---
@@ -527,6 +643,7 @@ npm run dev
 ### Environment Variables
 
 Copy `.env.example` to `.env.local` and fill in the values:
+
 ```bash
 # Supabase
 SUPABASE_URL=https://xxxx.supabase.co
@@ -584,7 +701,8 @@ WEBHOOK_ALERT_URL=https://hooks.slack.com/services/...
 ### Docker Build Failures
 
 - Check that all dependencies are listed in `package.json`
-- Verify that the `.dockerignore` file excludes unnecessary files
+- Verify the `.dockerignore` file exists and excludes `node_modules`, `.env`, `.next`, and `vault/`
+- Ensure `COPY package.json package-lock.json ./` comes before `COPY . .` — otherwise every code change busts the dependency cache
 - Check Docker daemon logs for more details
 
 ### Cost Alerts
