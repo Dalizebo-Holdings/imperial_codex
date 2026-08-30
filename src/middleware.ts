@@ -13,12 +13,12 @@ import { getIronSession } from 'iron-session';
 import type { SessionData } from '@/lib/security/types';
 
 const SESSION_COOKIE = 'imperial-session';
-const KERNEL_EXEMPT = ['/api/auth', '/api/status'];
+const AUTH_EXEMPT = ['/api/auth'];
 const SENSITIVE_ROUTES = ['/api/capital', '/api/strike', '/vault'];
 
 function isApiRoute(p: string) { return p.startsWith('/api/'); }
 function isSensitive(p: string) { return SENSITIVE_ROUTES.some((r) => p.startsWith(r)); }
-function isKernelExempt(p: string) { return KERNEL_EXEMPT.some((r) => p.startsWith(r)); }
+function isAuthExempt(p: string) { return AUTH_EXEMPT.some((r) => p.startsWith(r)); }
 
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
@@ -36,7 +36,7 @@ export async function middleware(request: NextRequest) {
     }
   } catch { /* session stays null */ }
 
-  if (!session) {
+  if (!session && !isAuthExempt(pathname)) {
     if (isApiRoute(pathname)) {
       return NextResponse.json(
         { error: { code: 'UNAUTHENTICATED', message: 'Valid session required' } },
@@ -56,18 +56,6 @@ export async function middleware(request: NextRequest) {
       { error: { code: 'CLEARANCE_DENIED', message: 'Level 1 clearance required' } },
       { status: 403 }
     );
-  }
-
-  if (!isKernelExempt(pathname)) {
-    try {
-      const { getStore } = await import('@/lib/store/InMemoryStore');
-      if (getStore().kernel.status === 'halted') {
-        return NextResponse.json(
-          { error: { code: 'KERNEL_HALTED', message: 'Kernel is halted' } },
-          { status: 503 }
-        );
-      }
-    } catch { /* allow through */ }
   }
 
   return res;

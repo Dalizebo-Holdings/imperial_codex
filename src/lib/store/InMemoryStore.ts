@@ -68,7 +68,33 @@ const DEFAULT_OS_MODULE_FUSE_OPTIONS: IFuseOptions<OSModule> = {
 // Singleton instance
 // ---------------------------------------------------------------------------
 
-let _store: InMemoryStore | null = null;
+// Dev-mode (Turbopack) can re-instantiate modules, which would otherwise
+// wipe module-level singletons between instrumentation.ts (which seeds the
+// store) and request handlers. Persisting the singleton on globalThis keeps
+// it shared across reloads. Node 18+/modern runtimes expose globalThis.
+const GLOBAL_KEY = Symbol.for('imperial-codex.in-memory-store');
+
+let _store: InMemoryStore | null =
+  (globalThis as Record<symbol, InMemoryStore | undefined>)[GLOBAL_KEY] ?? null;
+
+function createStore(): InMemoryStore {
+  return {
+    kernel: {
+      version: 'v16.2',
+      status: 'halted', // halted until KernelLoader validates and sets active
+      osModuleSlugs: [],
+      loadedAt: new Date().toISOString(),
+    },
+    pillars: new Map<string, Pillar>(),
+    osModules: new Map<string, OSModule>(),
+    integrations: new Map<string, Integration>(),
+    loops: new Map<string, RecursiveLoop>(),
+    library: new Map<string, LibraryEntry>(),
+    pillarSearchIndex: new Fuse<Pillar>([], DEFAULT_PILLAR_FUSE_OPTIONS),
+    librarySearchIndex: new Fuse<LibraryEntry>([], DEFAULT_LIBRARY_FUSE_OPTIONS),
+    osModuleSearchIndex: new Fuse<OSModule>([], DEFAULT_OS_MODULE_FUSE_OPTIONS),
+  };
+}
 
 /**
  * Returns the singleton InMemoryStore, creating it with empty collections
@@ -77,22 +103,8 @@ let _store: InMemoryStore | null = null;
  */
 export function getStore(): InMemoryStore {
   if (_store === null) {
-    _store = {
-      kernel: {
-        version: 'v16.2',
-        status: 'halted', // halted until KernelLoader validates and sets active
-        osModuleSlugs: [],
-        loadedAt: new Date().toISOString(),
-      },
-      pillars: new Map<string, Pillar>(),
-      osModules: new Map<string, OSModule>(),
-      integrations: new Map<string, Integration>(),
-      loops: new Map<string, RecursiveLoop>(),
-      library: new Map<string, LibraryEntry>(),
-      pillarSearchIndex: new Fuse<Pillar>([], DEFAULT_PILLAR_FUSE_OPTIONS),
-      librarySearchIndex: new Fuse<LibraryEntry>([], DEFAULT_LIBRARY_FUSE_OPTIONS),
-      osModuleSearchIndex: new Fuse<OSModule>([], DEFAULT_OS_MODULE_FUSE_OPTIONS),
-    };
+    _store = createStore();
+    (globalThis as Record<symbol, InMemoryStore | undefined>)[GLOBAL_KEY] = _store;
   }
   return _store;
 }
@@ -104,6 +116,7 @@ export function getStore(): InMemoryStore {
  */
 export function setStore(store: InMemoryStore): void {
   _store = store;
+  (globalThis as Record<symbol, InMemoryStore | undefined>)[GLOBAL_KEY] = store;
 }
 
 /**
@@ -111,4 +124,5 @@ export function setStore(store: InMemoryStore): void {
  */
 export function resetStore(): void {
   _store = null;
+  delete (globalThis as Record<symbol, InMemoryStore | undefined>)[GLOBAL_KEY];
 }

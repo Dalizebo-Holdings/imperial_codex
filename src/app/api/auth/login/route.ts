@@ -18,22 +18,23 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  // Validate clearance code against vault
+  // Admin clearance code: highest authority (level 2), checked first so a vault
+  // failure never blocks an admin from authenticating.
   let clearanceLevel = 0;
-  try {
-    const { read } = await import('@/lib/security/VaultRepository');
-    const vault = await read();
-    const codes = vault.clearanceCodes as Record<string, number> | undefined;
-    if (codes && typeof codes[clearanceCode] === 'number') {
-      clearanceLevel = codes[clearanceCode];
-    } else if (clearanceCode === process.env.ADMIN_CLEARANCE_CODE) {
-      clearanceLevel = 2;
-    } else {
-      // Level 0 — basic authenticated access for any non-empty code in dev
+  if (process.env.ADMIN_CLEARANCE_CODE && clearanceCode === process.env.ADMIN_CLEARANCE_CODE) {
+    clearanceLevel = 2;
+  } else {
+    try {
+      const { read } = await import('@/lib/security/VaultRepository');
+      const vault = await read();
+      const codes = vault.clearanceCodes as Record<string, number> | undefined;
+      if (codes && typeof codes[clearanceCode] === 'number') {
+        clearanceLevel = codes[clearanceCode];
+      }
+      // else: level 0 — basic authenticated access for any other non-empty code
+    } catch {
       clearanceLevel = 0;
     }
-  } catch {
-    clearanceLevel = 0;
   }
 
   const res = new Response(JSON.stringify({ ok: true, clearanceLevel }), {

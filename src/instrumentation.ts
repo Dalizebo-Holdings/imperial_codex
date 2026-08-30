@@ -32,6 +32,12 @@ export async function register() {
   try {
     const { loadKernel } = await import('@/lib/kernel/KernelLoader');
     const kernelResult = await loadKernel();
+    // Persist the loaded state into the store so KernelService reads the same
+    // state at runtime. Without this the singleton keeps its initial 'halted'.
+    if (kernelResult.state.status === 'active') {
+      const { getStore } = await import('@/lib/store/InMemoryStore');
+      getStore().kernel = kernelResult.state;
+    }
     if (kernelResult.state.status === 'halted') {
       console.error('[Startup] Kernel halted — all API routes will return 503 KERNEL_HALTED');
     }
