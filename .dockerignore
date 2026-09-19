@@ -35,5 +35,4 @@ gen.js
 .prettierrc
 jest.config.ts
 tsconfig.tsbuildinfo
-next-env.d.ts
 .turbopack

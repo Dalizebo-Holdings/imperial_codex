@@ -13,7 +13,7 @@ import { getIronSession } from 'iron-session';
 import type { SessionData } from '@/lib/security/types';
 
 const SESSION_COOKIE = 'imperial-session';
-const AUTH_EXEMPT = ['/api/auth'];
+const AUTH_EXEMPT = ['/api/auth', '/api/health'];
 const SENSITIVE_ROUTES = ['/api/capital', '/api/strike', '/vault'];
 
 function isApiRoute(p: string) { return p.startsWith('/api/'); }
@@ -51,7 +51,7 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(url);
   }
 
-  if (isSensitive(pathname) && session.clearanceLevel < 1) {
+  if (session && isSensitive(pathname) && session.clearanceLevel < 1) {
     return NextResponse.json(
       { error: { code: 'CLEARANCE_DENIED', message: 'Level 1 clearance required' } },
       { status: 403 }

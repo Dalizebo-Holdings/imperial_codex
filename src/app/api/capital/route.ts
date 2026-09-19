@@ -23,7 +23,7 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const allocation = { growthPercent, operationalPercent, reservePercent };
+  const allocation = { growthPercent, operationalPercent, reservePercent, osModuleSlug };
   const errors = validate(allocation);
 
   if (errors.length > 0) {

@@ -8,7 +8,7 @@
  * Encryption key: VAULT_ENCRYPTION_KEY env var (64-char hex = 32 bytes).
  */
 
-import { createCipheriv, createDecipheriv, randomBytes } from 'crypto';
+import { createCipheriv, createDecipheriv, createSecretKey, randomBytes } from 'crypto';
 import { getSupabaseServiceClient, SupabaseDegradedError } from '@/lib/db/supabase';
 import { withRetry } from '@/lib/db/retry';
 
@@ -32,13 +32,24 @@ function getKey(): Buffer {
   return Buffer.from(hex, 'hex');
 }
 
+function toBytes(buffer: Buffer): Uint8Array {
+  return new Uint8Array(buffer);
+}
+
+function toSecretKey(key: Buffer) {
+  return createSecretKey(toBytes(key));
+}
+
 /**
  * Encrypts plaintext using AES-256-GCM.
  */
 export function encrypt(plaintext: string, key: Buffer): EncryptedEnvelope {
   const iv = randomBytes(IV_LENGTH);
-  const cipher = createCipheriv(ALGORITHM, key, iv);
-  const encrypted = Buffer.concat([cipher.update(plaintext, 'utf8'), cipher.final()]);
+  const cipher = createCipheriv(ALGORITHM, toSecretKey(key), toBytes(iv));
+  const encrypted = Buffer.concat([
+    toBytes(cipher.update(plaintext, 'utf8')),
+    toBytes(cipher.final()),
+  ]);
   const tag = cipher.getAuthTag();
 
   return {
@@ -56,10 +67,13 @@ export function decrypt(envelope: EncryptedEnvelope, key: Buffer): string {
   const tag = Buffer.from(envelope.tag, 'base64');
   const ciphertext = Buffer.from(envelope.ciphertext, 'base64');
 
-  const decipher = createDecipheriv(ALGORITHM, key, iv);
-  decipher.setAuthTag(tag);
+  const decipher = createDecipheriv(ALGORITHM, toSecretKey(key), toBytes(iv));
+  decipher.setAuthTag(toBytes(tag));
 
-  return Buffer.concat([decipher.update(ciphertext), decipher.final()]).toString('utf8');
+  return Buffer.concat([
+    toBytes(decipher.update(toBytes(ciphertext))),
+    toBytes(decipher.final()),
+  ]).toString('utf8');
 }
 
 /**
