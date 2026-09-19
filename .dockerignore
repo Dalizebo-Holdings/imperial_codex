@@ -34,7 +34,6 @@ gen.js
 .gitignore
 .prettierrc
 jest.config.ts
-tsconfig.json
 tsconfig.tsbuildinfo
 next-env.d.ts
 .turbopack
